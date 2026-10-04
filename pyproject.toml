@@ -1,0 +1,12 @@
+[project]
+name = "x-digest"
+version = "1.0.0"
+description = "Email digest of new posts from monitored X accounts"
+readme = "README.md"
+authors = [
+    { name = "gsanders300", email = "138838137+gsanders300@users.noreply.github.com" }
+]
+# digest.py is a PEP 723 single-file script; keep this in sync with its
+# inline `requires-python` header.
+requires-python = ">=3.11"
+dependencies = []

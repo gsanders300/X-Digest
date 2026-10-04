@@ -1,0 +1,50 @@
+name: Send Daily X Digest
+
+on:
+  # Triggered asynchronously by Apify webhook when actor finishes
+  repository_dispatch:
+    types: [apify-digest-ready]
+
+  # Allows manual triggers from the GitHub UI
+  workflow_dispatch:
+    inputs:
+      dataset_id:
+        description: 'Optional Apify Dataset ID to process'
+        required: false
+        default: ''
+
+# Overlapping runs race the shared Apify state store; queue instead.
+concurrency:
+  group: x-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Run digest script
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          # Passed via env (not inline interpolation) to avoid shell injection.
+          DATASET_ID: ${{ github.event.client_payload.dataset_id || inputs.dataset_id }}
+        run: |
+          if [ -n "$DATASET_ID" ]; then
+            echo "Running with provided dataset ID: $DATASET_ID"
+            uv run digest.py --dataset-id "$DATASET_ID"
+          else
+            echo "No dataset ID passed. Executing full scrape..."
+            uv run digest.py
+          fi

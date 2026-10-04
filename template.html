@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>X Daily Digest</title>
+  <style>
+    body {
+      max-width: 700px;
+      margin: 0 auto;
+      background: #f6f8fa;
+      color: #202124;
+      font-family: Arial, sans-serif;
+    }
+    .header {
+      padding: 20px;
+      border-radius: 8px 8px 0 0;
+      background: #0077b5;
+      color: #ffffff;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+    .header p {
+      margin: 8px 0 0;
+      font-size: 14px;
+    }
+    .header .run-time {
+      margin: 4px 0 0;
+      font-size: 13px;
+    }
+    .content {
+      padding: 0 20px 20px;
+    }
+    .banner,
+    .notice {
+      margin: 20px 0 0;
+      padding: 14px 16px;
+      border-radius: 0 8px 8px 0;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .banner-title {
+      margin-bottom: 6px;
+      font-size: 15px;
+      font-weight: bold;
+    }
+    .banner-error {
+      border-left: 4px solid #c62828;
+      background: #fdecec;
+    }
+    .banner-error .banner-title {
+      color: #a71919;
+    }
+    .banner-warning {
+      border-left: 4px solid #d99a00;
+      background: #fff7dc;
+    }
+    .banner-warning .banner-title {
+      color: #795800;
+    }
+    .notice {
+      border-left: 4px solid #0077b5;
+      background: #ffffff;
+      color: #546e7a;
+    }
+    .author-section {
+      margin: 24px 0 0;
+    }
+    .author-heading {
+      padding: 10px 16px;
+      border-radius: 6px;
+      background: #e8f0f7;
+      color: #004f80;
+      font-size: 15px;
+      font-weight: bold;
+    }
+    .author-heading a {
+      color: #004f80;
+      text-decoration: none;
+    }
+    .author-heading a:hover {
+      text-decoration: underline;
+    }
+    .post {
+      margin: 10px 0 10px 12px;
+      padding: 20px;
+      border-left: 4px solid #0077b5;
+      border-radius: 0 8px 8px 0;
+      background: #ffffff;
+    }
+    .post-meta {
+      margin: 0 0 10px;
+      color: #666666;
+      font-size: 12px;
+    }
+    .summary {
+      margin: 0 0 15px;
+      color: #202124;
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-line;
+      word-break: break-word;
+    }
+    .link {
+      color: #0077b5;
+      font-size: 14px;
+      font-weight: bold;
+      text-decoration: none;
+    }
+    .link:hover {
+      text-decoration: underline;
+    }
+    .links-section {
+      margin: 14px 0 0;
+      padding-top: 10px;
+      border-top: 1px solid #e8f0f7;
+      color: #546e7a;
+      font-size: 12px;
+    }
+    .links-title {
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    .link-item {
+      margin-top: 4px;
+    }
+    .link-item a {
+      color: #0077b5;
+      text-decoration: none;
+      word-break: break-all;
+    }
+    .usage {
+      margin: 30px 0 10px;
+      padding: 14px 20px;
+      border-radius: 8px;
+      background: #f6f8fa;
+      color: #546e7a;
+      font-size: 12px;
+    }
+    .usage-line {
+      margin-bottom: 6px;
+    }
+    .usage-bar {
+      height: 6px;
+      overflow: hidden;
+      border-radius: 4px;
+      background: #dce3ea;
+    }
+    .usage-fill {
+      height: 6px;
+      border-radius: 4px;
+    }
+    @media only screen and (max-width: 600px) {
+      .content {
+        padding: 0 10px 14px;
+      }
+      .post {
+        margin-left: 6px;
+        padding: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>X Daily Digest</h1>
+    <p>{{ today_display }}</p>
+    {% if started_str %}<p class="run-time">Started: {{ started_str }}</p>{% endif %}
+    {% if completed_str %}<p class="run-time">Completed: {{ completed_str }}</p>{% endif %}
+    {% if window_str %}<p class="run-time">Posts scanned: {{ window_str }}</p>{% endif %}
+  </div>
+
+  <div class="content">
+    {% if scrape_error %}
+    <div class="banner banner-error">
+      <div class="banner-title">Scraper Error</div>
+      <div>{{ scrape_error }}</div>
+    </div>
+    {% endif %}
+
+    {% if warnings %}
+    <div class="banner banner-warning">
+      <div class="banner-title">Warning{{ 's' if warnings|length > 1 else '' }}</div>
+      {% for warning in warnings %}
+      <div>{{ warning }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not posts and not scrape_error %}
+    <div class="notice">No new posts from the monitored X accounts in the scanned window.</div>
+    {% endif %}
+
+    {% for group in author_groups %}
+    <div class="author-section">
+      <div class="author-heading">
+        <a href="{{ group.profile_url }}" target="_blank" rel="noopener noreferrer">@{{ group.author }}</a>
+      </div>
+
+      {% for post in group.posts %}
+      <div class="post">
+        {% if post.time_str %}<div class="post-meta">{{ post.time_str }}</div>{% endif %}
+        <div class="summary">{{ post.text }}</div>
+        <a href="{{ post.url }}" class="link" target="_blank" rel="noopener noreferrer">Read on X &rarr;</a>
+
+        {% if post.links %}
+        <div class="links-section">
+          <div class="links-title">Links:</div>
+          {% for link in post.links %}
+          <div class="link-item">
+            <a href="{{ link }}" target="_blank" rel="noopener noreferrer">{{ link }}</a>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+
+    {% if usage %}
+    <div class="usage">
+      <div class="usage-line">
+        <strong>Apify usage this month:</strong>
+        ${{ '%.2f'|format(usage.used_usd) }} of ${{ '%.2f'|format(usage.limit_usd) }}
+        &nbsp;({{ '%.1f'|format(usage.percent) }}%)
+      </div>
+      <div class="usage-bar">
+        <div class="usage-fill" style="width:{{ '%.1f'|format(usage.bar_pct) }}%;background-color:{{ usage.bar_color }};"></div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</body>
+</html>
