@@ -34,8 +34,8 @@ This document uses ASD-STE100 Simplified Technical English.
 The program is a single Python script: `digest.py`. This single-file layout is final.
 
 The program operates locally and in GitHub Actions. The GitHub Actions workflow does not
-have a time schedule. An external scheduler starts the workflow. You can also start the
-workflow manually or send a `repository_dispatch` event.
+have a time schedule. To start it at fixed times, see [Run on a timer](#run-on-a-timer).
+You can also start the workflow manually or send a `repository_dispatch` event.
 
 Each release has a version tag. A private repository can run a release of this code with
 its own handle list. See [Keep your handle list private](#keep-your-handle-list-private).
@@ -44,41 +44,131 @@ The Apify actor charges for its results. Use an existing dataset when you test c
 
 ## Quick start
 
+These steps set up the job on your computer. To run the job only in GitHub Actions, do
+steps 3, 4, and 6, and then go to [GitHub Actions](#github-actions).
+
 ### Requirements
 
 You must have these items:
 
-- Python 3.11 or a later version
-- [uv](https://docs.astral.sh/uv/)
-- An Apify account and an API token
-- A Gmail account with two-step verification
-- A Gmail app password
+- [Git](https://git-scm.com/downloads)
+- [uv](https://docs.astral.sh/uv/). When necessary, uv installs Python 3.11 or a later
+  version automatically.
+- An [Apify](https://apify.com/) account
+- A Gmail account
 
-A Gmail app password is not your Gmail account password. Create an app password in the
-security settings of your Google account.
+The job uses a paid Apify actor:
+[kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest](https://apify.com/kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest).
+The actor charges for each post that it returns. It also has a minimum charge for each
+call, when there are no results too. On 2026-10-04, the actor page showed a price of $0.18
+for each 1,000 posts. The actor page also says that it limits the number of posts for free
+Apify users. Examine the actor page for the current price and limits. The
+[item budget](#item-budget) sets the maximum number of posts for each run.
 
-### Configuration
+### Step 1: Install uv
 
-1. Create a file named `.env` in the repository root.
-2. Add these values:
+On macOS or Linux:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+On Windows (PowerShell):
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Open a new terminal after the installation. For other installation methods, see the
+[uv installation guide](https://docs.astral.sh/uv/getting-started/installation/).
+
+### Step 2: Get the code
+
+```bash
+git clone https://github.com/gsanders300/X-Digest.git
+cd X-Digest
+uv run digest.py --help
+```
+
+The last command shows the help text. It does not start the actor or send an email. On
+the first run, uv downloads Python and the dependencies.
+
+Run all the commands in this document from the `X-Digest` folder. The program reads
+`handles.txt` from the current folder.
+
+### Step 3: Get an Apify API token
+
+1. Sign in to [Apify Console](https://console.apify.com/).
+2. Go to the [API & Integrations](https://console.apify.com/settings/integrations) page.
+3. Copy your personal API token.
+
+You do not have to make a store or start the actor in Apify Console. The program makes
+the key-value store `x-digest-state` on the first run, and it starts the actor itself.
+
+### Step 4: Make a Gmail app password
+
+The program sends the email through your Gmail account. For this, Gmail needs an app
+password. An app password is not your Gmail account password.
+
+1. Go to the [security settings](https://myaccount.google.com/security) of your Google
+   account. Turn on **2-Step Verification**.
+2. Go to the [App passwords](https://myaccount.google.com/apppasswords) page.
+3. Make an app password. Give it a name, for example `X-Digest`.
+4. Copy the 16-character password. Remove the spaces.
+
+Google does not supply app passwords for some accounts. These include work and school
+accounts, accounts with Advanced Protection, and accounts that use only security keys for
+2-Step Verification.
+
+### Step 5: Make the `.env` file
+
+Make a file named `.env` in the `X-Digest` folder. Put your values in these lines:
 
 ```dotenv
 APIFY_TOKEN=your_apify_token
 GMAIL_USER=you@gmail.com
-GMAIL_APP_PASS=your_gmail_app_password
+GMAIL_APP_PASS=your16characterapppassword
 RECIPIENT_EMAIL=recipient@example.com
 ```
 
-3. Replace the example handles in `handles.txt`. Put one X handle on each line.
-4. Run the job:
+- `GMAIL_USER` is the Gmail address that owns the app password. The email comes from
+  this address.
+- `RECIPIENT_EMAIL` is the address that gets the digest. It can be the same address as
+  `GMAIL_USER`.
 
-```powershell
+Git ignores `.env`. Do not commit this file. For the optional settings, for example the
+time zone, see [Environment variables](#environment-variables).
+
+### Step 6: Select the X accounts
+
+Open `handles.txt`. Replace the example handles with the X accounts that you want. Put
+one handle on each line. For the full format, see [Handle file](#handle-file).
+
+### Step 7: Do the first run
+
+```bash
 uv run --env-file .env digest.py
 ```
 
-This command starts a paid Apify actor run. The command waits for the actor, reads the
-result dataset, and sends an email. The first run scans the previous 24 hours. Each
-subsequent run scans the time since the previous run.
+This command starts a paid actor run. It waits for the actor (a maximum of 11 minutes),
+and then it sends one email to `RECIPIENT_EMAIL`. The first run scans the previous 24
+hours, and the email shows a first-run notice.
+
+The subject shows the result, for example:
+
+```text
+X Digest - 3 New Posts (Sep 20 06:00-12:00 EDT)
+```
+
+If the email has a red or yellow banner, see [Troubleshooting](#troubleshooting).
+
+Run the same command again to get the posts since the previous run. To run the job
+automatically, use [GitHub Actions](#github-actions), or start the command from a
+scheduler on your computer, for example cron or Windows Task Scheduler.
+
+**NOTE:** All runs that use the same Apify account share one state store. Thus a local
+run moves the scan window forward for the next GitHub Actions run, and the reverse. A
+post that one run sent does not appear in a later run.
 
 ## Safe test run
 
@@ -88,7 +178,9 @@ Use an existing dataset to prevent a new actor charge:
 uv run --env-file .env digest.py --dataset-id DATASET_ID
 ```
 
-Replace `DATASET_ID` with the ID of a completed Apify dataset.
+Replace `DATASET_ID` with the ID of a completed Apify dataset. The output of each run
+shows the dataset ID in this line: `Fetching dataset items from ID: DATASET_ID`. The
+**Storage** page in Apify Console also shows your datasets.
 
 The program still sends an email. It also reads the shared state store and can add new
 post IDs to it. A replay run does not apply a time filter and does not move the scan
@@ -433,14 +525,95 @@ GitHub Actions marks a run as failed when the exit code is not zero.
 
 ## GitHub Actions
 
-The workflow file is `.github/workflows/digest.yml`. It supplies these secrets:
+The workflow `.github/workflows/digest.yml` runs the job in GitHub Actions. It does not
+need your computer.
 
-- `APIFY_TOKEN`
-- `GMAIL_USER`
-- `GMAIL_APP_PASS`
-- `RECIPIENT_EMAIL`
+### Set up the workflow
 
-Add each secret in the repository settings before you run the workflow.
+1. Fork this repository. A fork of a public repository is public, thus your
+   `handles.txt` is public too. To keep the list private, do the steps in
+   [Keep your handle list private](#keep-your-handle-list-private) instead.
+2. In your fork, edit `handles.txt` (see [step 6](#step-6-select-the-x-accounts)) and
+   commit the change.
+3. Go to the **Actions** tab of your fork. GitHub does not run the workflows of a fork
+   until you enable them. Select the button that enables the workflows.
+4. Go to **Settings > Secrets and variables > Actions**. Select **New repository
+   secret**. Add these four secrets, with the values from steps 3 to 5 of the
+   [Quick start](#quick-start):
+   - `APIFY_TOKEN`
+   - `GMAIL_USER`
+   - `GMAIL_APP_PASS`
+   - `RECIPIENT_EMAIL`
+5. Optional: to change `DISPLAY_TZ` or `HANDLES_FILE`, add the variable to the `env`
+   block of the **Run digest script** step in `.github/workflows/digest.yml`. Example:
+
+   ```yaml
+           env:
+             APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+             # ... the other secrets ...
+             DISPLAY_TZ: Europe/London
+   ```
+
+### Start a run manually
+
+1. Go to the **Actions** tab. Select **Send Daily X Digest** in the left column.
+2. Select **Run workflow**.
+3. Optional: type a dataset ID. With an ID, the run uses that dataset and does not start
+   the actor (see [Safe test run](#safe-test-run)).
+4. Select the green **Run workflow** button.
+
+Without a dataset ID, the workflow starts a paid actor run with the sliding window.
+
+### Run on a timer
+
+This workflow does not have a `schedule` trigger. Use one of these two methods.
+
+**Method 1: an external scheduler.** Use a scheduler that can send an HTTPS POST request
+at fixed times. Configure it to send this request:
+
+```bash
+curl -X POST \
+  -H "Accept: application/vnd.github+json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  https://api.github.com/repos/OWNER/REPO/actions/workflows/digest.yml/dispatches \
+  -d '{"ref":"main"}'
+```
+
+Replace `OWNER/REPO` with your repository. For `YOUR_TOKEN`, make a fine-grained personal
+access token in **GitHub Settings > Developer settings > Personal access tokens**. Give it
+access to only this repository, with the repository permission **Actions: Read and
+write**.
+
+**Method 2: a GitHub schedule.** Add a `schedule` trigger under `on:` in your copy of the
+workflow:
+
+```yaml
+  schedule:
+    - cron: "0 */8 * * *"
+```
+
+This example starts the workflow every 8 hours (UTC). GitHub documents two limits for
+schedules: a scheduled run can start late when GitHub Actions has a high load, and GitHub
+disables scheduled workflows in a public repository after 60 days with no repository
+activity. A late run does not lose posts, because the sliding window covers the full gap.
+
+### Start a run from a different system
+
+The workflow also starts on a `repository_dispatch` event with the type
+`apify-digest-ready`. Send the event with this request:
+
+```bash
+curl -X POST \
+  -H "Accept: application/vnd.github+json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  https://api.github.com/repos/OWNER/REPO/dispatches \
+  -d '{"event_type":"apify-digest-ready","client_payload":{"dataset_id":"DATASET_ID"}}'
+```
+
+With a `dataset_id`, the run uses that dataset. Without it, the run starts a paid actor
+run. The token needs the repository permission **Contents: Read and write**.
+
+### Workflow protections
 
 The workflow has these protections:
 
@@ -449,36 +622,6 @@ The workflow has these protections:
 - A 20-minute job timeout.
 - The dataset ID goes to the script through the `DATASET_ID` environment variable. The
   workflow does not put the value in the shell command text.
-
-The workflow has two triggers.
-
-### Manual trigger
-
-Start `Send Daily X Digest` from the Actions page. You can supply an optional dataset ID.
-If you do not supply an ID, the workflow starts a paid actor run with the sliding window.
-
-### Repository dispatch trigger
-
-Send a `repository_dispatch` event with this type:
-
-```text
-apify-digest-ready
-```
-
-Use this payload when an existing actor run supplies a dataset:
-
-```json
-{
-  "event_type": "apify-digest-ready",
-  "client_payload": {
-    "dataset_id": "DATASET_ID"
-  }
-}
-```
-
-The workflow does not have a `schedule` trigger, and this is intentional. An external
-scheduler starts the workflow at the desired interval. The sliding window adapts to the
-interval automatically. Do not add a `schedule` block.
 
 ## Keep your handle list private
 
@@ -493,32 +636,69 @@ when it runs. The program reads `handles.txt` from the working directory, which 
 root of the private repository. It reads `template.html` from the folder of `digest.py`.
 
 1. Make a private repository. Put your `handles.txt` in its root folder.
-2. Copy `.github/workflows/digest.yml` into the private repository.
-3. In the workflow, add a second checkout step after the first one. Then run the script
-   from the `app` folder, as this example shows:
+2. In the private repository, make the file `.github/workflows/digest.yml` with this
+   content:
 
    ```yaml
-   - name: Check out repository
-     uses: actions/checkout@v4
+   name: Send Daily X Digest
 
-   - name: Check out X-Digest code
-     uses: actions/checkout@v4
-     with:
-       repository: gsanders300/X-Digest
-       ref: v1.0.0
-       path: app
+   on:
+     repository_dispatch:
+       types: [apify-digest-ready]
+     workflow_dispatch:
+       inputs:
+         dataset_id:
+           description: 'Optional Apify Dataset ID to process'
+           required: false
+           default: ''
 
-   - name: Install uv
-     uses: astral-sh/setup-uv@v5
-     with:
-       enable-cache: true
+   # Overlapping runs race the shared Apify state store; queue instead.
+   concurrency:
+     group: x-digest
+     cancel-in-progress: false
 
-   - name: Run digest script
-     run: uv run app/digest.py
+   jobs:
+     digest:
+       runs-on: ubuntu-latest
+       timeout-minutes: 20
+
+       steps:
+         - name: Check out repository
+           uses: actions/checkout@v4
+
+         - name: Check out X-Digest code
+           uses: actions/checkout@v4
+           with:
+             repository: gsanders300/X-Digest
+             ref: v1.0.0
+             path: app
+
+         - name: Install uv
+           uses: astral-sh/setup-uv@v5
+           with:
+             enable-cache: true
+
+         - name: Run digest script
+           env:
+             APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+             GMAIL_USER: ${{ secrets.GMAIL_USER }}
+             GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
+             RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+             DATASET_ID: ${{ github.event.client_payload.dataset_id || inputs.dataset_id }}
+           run: |
+             if [ -n "$DATASET_ID" ]; then
+               uv run app/digest.py --dataset-id "$DATASET_ID"
+             else
+               uv run app/digest.py
+             fi
    ```
 
-   Also change `digest.py` to `app/digest.py` in the `--dataset-id` command.
-4. Add the four secrets to the private repository (see [GitHub Actions](#github-actions)).
+3. Add the four secrets to the private repository (see step 4 of
+   [Set up the workflow](#set-up-the-workflow)).
+4. Start a run manually to test the setup (see
+   [Start a run manually](#start-a-run-manually)). To run on a timer, see
+   [Run on a timer](#run-on-a-timer). Use the name of the private repository in the
+   request.
 
 The `ref` value pins a release. A change to the `main` branch of this repository does not
 change the private digest. To use a new release, change `ref` to the new tag.
@@ -697,4 +877,4 @@ access adapt to the installed version.
 - A post that enters the X search index more than 10 minutes late can fall outside all
   scan windows. Increase `WINDOW_OVERLAP` in `digest.py` when this occurs.
 - The job sends to one `RECIPIENT_EMAIL` value.
-- The workflow needs an external scheduler.
+- The workflow does not have a schedule. See [Run on a timer](#run-on-a-timer).
