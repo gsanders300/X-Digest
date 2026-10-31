@@ -740,7 +740,8 @@ Gmail.
 
 The **Tests** workflow (`.github/workflows/tests.yml`) runs the tests and the metadata
 check on each push to `main` and on each pull request. It uses Python 3.11 and 3.14. It
-needs no secrets.
+needs no secrets. It also fails when `digest.py` or `template.html` changed since the
+latest tag but the version in `pyproject.toml` is still that tag's version.
 
 Run the tests from the repository root:
 

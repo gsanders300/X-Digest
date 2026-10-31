@@ -145,6 +145,8 @@ that way).
 
 `.github/workflows/tests.yml` runs `uv run digest.py --help` and the unittest suite on
 Python 3.11 and 3.14 for each push to `main` and each pull request. It needs no secrets.
+Its `version-bump` job fails when `digest.py` or `template.html` differ from the latest
+`v*` tag while `pyproject.toml` still holds that tag's version.
 
 ## Releases
 

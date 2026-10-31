@@ -33,3 +33,31 @@ jobs:
         run: >-
           uv run --with "apify-client>=1.8.0" --with "jinja2>=3.1.0" --with "tzdata>=2024.1"
           python -m unittest discover -s tests -v
+
+  # release.yml only releases a version whose tag doesn't exist yet, so shipped code
+  # changes without a version bump would never reach a release.
+  version-bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history so existing version tags are visible
+
+      - name: Require a version bump when shipped code changes
+        run: |
+          latest=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1)
+          if [ -z "$latest" ]; then
+            echo "No release tags yet; nothing to compare."
+            exit 0
+          fi
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          if ! git diff --quiet "$latest" HEAD -- digest.py template.html \
+              && [ "v${version}" = "$latest" ]; then
+            echo "::error::digest.py or template.html changed since ${latest}, but pyproject.toml is still ${version}. Bump version and run uv lock."
+            exit 1
+          fi
+          echo "OK: latest tag ${latest}, pyproject.toml version ${version}."
