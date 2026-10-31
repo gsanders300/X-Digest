@@ -84,7 +84,7 @@ All state lives in a **named Apify key-value store**, not in the repo: store
   operators, precise to the second. This is deliberate on a pay-per-result actor: date-only
   `since:`/`until:` would re-fetch (and re-bill) the same day's posts on every 6-hour run.
 - `maxItems` scales with handle count **and** window length:
-  `max(30, ceil(5 * handles * window_hours / 24))`, capped at 3 days' worth
+  `max(75, ceil(5 * handles * window_hours / 24))`, capped at 3 days' worth
   (`max_items_budget`) so a long outage gap cannot explode the cost ceiling. When a scrape
   we triggered returns a full cap of items, a yellow truncation warning is added to the
   email. The cap is also the worst-case cost ceiling per run.

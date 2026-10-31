@@ -219,10 +219,11 @@ class DigestTests(unittest.TestCase):
         self.assertEqual(digest.drift_warnings({"mock": 5, "outside_window": 2}), [])
 
     def test_max_items_budget_scales_with_handles_and_window(self):
-        self.assertEqual(digest.max_items_budget(3, 24.0), 30)  # floor
-        self.assertEqual(digest.max_items_budget(11, 24.0), 55)  # per-day rate
-        self.assertEqual(digest.max_items_budget(11, 6.0), 30)  # short window -> floor
+        self.assertEqual(digest.max_items_budget(3, 24.0), 75)  # floor
+        self.assertEqual(digest.max_items_budget(20, 24.0), 100)  # per-day rate
+        self.assertEqual(digest.max_items_budget(11, 6.0), 75)  # short window -> floor
         self.assertEqual(digest.max_items_budget(11, 24.0 * 10), 165)  # 3-day cap
+        self.assertEqual(digest.max_items_budget(3, 24.0 * 10), 75)  # floor beats cap
 
     def test_scan_window_continues_from_last_run_with_overlap(self):
         job_start = datetime(2026, 9, 20, 12, 0, 4, tzinfo=timezone.utc)

@@ -280,20 +280,21 @@ The scan window does not use `DISPLAY_TZ`.
 The program calculates a maximum item count for each scrape:
 
 ```text
-maxItems = max(30, ceil(5 * handles * window_hours / 24))
+maxItems = max(75, ceil(5 * handles * window_hours / 24))
 ```
 
 The budget has an upper limit of three days of items (`15 * handles`). A long gap between
-runs cannot make the cost ceiling too large. When a scrape returns the full budget, the
-email shows a yellow truncation warning.
+runs cannot make the cost ceiling too large. The 75-item minimum still applies when it is
+above that limit. When a scrape returns the full budget, the email shows a yellow
+truncation warning.
 
-Example budgets for 12 handles:
+Example budgets for 24 handles:
 
 | Window | Budget |
 | --- | --- |
-| 6 hours | 30 (minimum) |
-| 24 hours | 60 |
-| 10 days | 180 (three-day limit) |
+| 6 hours | 75 (minimum) |
+| 24 hours | 120 |
+| 10 days | 360 (three-day limit) |
 
 ## Display time
 

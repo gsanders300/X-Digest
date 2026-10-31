@@ -54,7 +54,7 @@ SMTP_RETRY_BASE_DELAY = 2.0
 # scanned window but is capped at MAX_ITEMS_WINDOW_CAP_DAYS' worth so a long
 # outage gap cannot explode the ceiling.
 MAX_ITEMS_PER_HANDLE = 5
-MAX_ITEMS_FLOOR = 30
+MAX_ITEMS_FLOOR = 75
 MAX_ITEMS_WINDOW_CAP_DAYS = 3
 
 # Kill a hung actor run platform-side, and never let the client wait forever.
