@@ -59,8 +59,11 @@ All state lives in a **named Apify key-value store**, not in the repo: store
   Missing/malformed metadata = first run = a 24-hour lookback (`FIRST_RUN_LOOKBACK`).
 - The metadata advances on **every clean sliding run, including zero-post runs** — otherwise
   the same interval would be re-scanned forever. It does **not** advance on scrape errors,
-  failed sends, or replay/pinned runs (`--dataset-id`/`--window-date`), so a failed run's
-  interval is automatically re-scanned by the next run.
+  failed sends, replay/pinned runs (`--dataset-id`/`--window-date`), or a scrape that
+  returned **zero raw items** (`scrape_empty`), so that interval is automatically re-scanned
+  by the next run. Zero raw items is how a broken actor build looks: it reports SUCCEEDED
+  with an empty dataset (v1.0.2 sent "No New Posts" for 9 days this way). Such runs get a
+  `Scraper Returned Nothing` subject and a warning but still exit 0.
 - Re-running after a successful send produces a "No New Posts" email covering a short window
   — the second run is not a no-op bug. To force a resend of an interval, clear or edit the
   `run_metadata` record (and if needed `seen_post_ids`) in the Apify console.

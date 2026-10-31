@@ -1,8 +1,10 @@
 import os
+import sys
 import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 import digest
 
@@ -355,6 +357,59 @@ class DigestTests(unittest.TestCase):
 
         self.assertEqual(dataset_id, "ds1")
         self.assertNotIn("build", calls[0])
+
+    def test_subject_flags_empty_scrape_below_scraper_error(self):
+        self.assertEqual(
+            digest.subject_line([], None, "replay", scrape_empty=True),
+            "X Digest - Scraper Returned Nothing (replay)",
+        )
+        self.assertEqual(
+            digest.subject_line([], "boom", "replay", scrape_empty=True),
+            "X Digest - Scraper Error (replay)",
+        )
+
+    def _run_sliding_main(self, raw_items, seen_ids):
+        last_end = datetime(2026, 9, 20, 6, tzinfo=timezone.utc)
+        env = {
+            "APIFY_TOKEN": "t",
+            "GMAIL_USER": "u",
+            "GMAIL_APP_PASS": "p",
+            "RECIPIENT_EMAIL": "r",
+        }
+        send_email = mock.Mock(return_value=True)
+        with mock.patch.dict(os.environ, env), \
+                mock.patch.object(sys, "argv", ["digest.py"]), \
+                mock.patch.multiple(
+                    digest,
+                    ApifyClient=mock.DEFAULT,
+                    get_state_store_client=mock.DEFAULT,
+                    load_seen_ids=mock.Mock(return_value=seen_ids),
+                    load_run_metadata=mock.Mock(return_value={"window_end": last_end}),
+                    load_handles=mock.Mock(return_value=["user1"]),
+                    trigger_apify_scrape=mock.Mock(return_value="ds1"),
+                    fetch_dataset_items=mock.Mock(return_value=raw_items),
+                    fetch_apify_usage=mock.Mock(return_value=(None, None)),
+                    send_email=send_email,
+                    save_seen_ids=mock.DEFAULT,
+                    save_run_metadata=mock.DEFAULT,
+                ) as mocks:
+            digest.main()
+        return send_email, mocks["save_run_metadata"]
+
+    def test_empty_scrape_is_flagged_and_does_not_advance_window(self):
+        send_email, save_run_metadata = self._run_sliding_main([], [])
+
+        kwargs = send_email.call_args.kwargs
+        self.assertTrue(kwargs["scrape_empty"])
+        self.assertTrue(any("returned no items" in w for w in kwargs["warnings"]))
+        save_run_metadata.assert_not_called()
+
+    def test_quiet_scrape_with_items_still_advances_window(self):
+        # Items came back but were all seen before: zero new posts, healthy actor.
+        send_email, save_run_metadata = self._run_sliding_main([{"id": "1"}], ["1"])
+
+        self.assertFalse(send_email.call_args.kwargs["scrape_empty"])
+        save_run_metadata.assert_called_once()
 
 
 if __name__ == "__main__":

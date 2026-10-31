@@ -411,6 +411,7 @@ The program sends an email on each normal run. It sends one of these results:
 
 - A digest with new posts
 - A `No New Posts` notice
+- A `Scraper Returned Nothing` notice, when the actor returns zero items
 - A scraper error report
 
 The email contains these parts:
@@ -434,6 +435,7 @@ Posts scanned: Sep 20, 6:00 AM - 12:00 PM EDT (6.0 h)
 The yellow warning banner can contain these entries:
 
 - The scrape returned the full item budget. Posts can be missing.
+- The scrape returned zero items. The scan window did not move forward.
 - Items were removed for an unknown author or an invalid timestamp.
 - The Apify usage data is not available.
 - The run was a first run with a 24-hour window.
@@ -454,6 +456,7 @@ The subject shows the scanned interval in the display time zone:
 ```text
 X Digest - 3 New Posts (Sep 20 06:00-12:00 EDT)
 X Digest - No New Posts (Sep 20 12:33-12:45 EDT)
+X Digest - Scraper Returned Nothing (Sep 20 06:00-12:00 EDT)
 X Digest - Scraper Error (Sep 20 06:00-12:00 EDT)
 ```
 
@@ -490,7 +493,9 @@ removes the oldest IDs.
 
 The program saves new IDs only after Gmail accepts an email that has new posts. A failed
 email does not use the IDs. The program saves new scan metadata after each clean sliding
-run, including a run with zero new posts.
+run, including a run with zero new posts. It does not save new scan metadata when the
+scrape returns zero items, because a broken actor build looks the same. The next run
+scans that interval again.
 
 A missing record is a fresh start. A read failure from the Apify API is different: the
 program stops before the scrape, sends an error email, and exits with code 1. This rule
@@ -515,6 +520,7 @@ usage bar and adds a yellow warning entry.
 | Condition | Exit code |
 | --- | --- |
 | Email sent, no scraper error, state saved | `0` |
+| Email sent, scrape returned zero items (scan window held) | `0` |
 | Scraper error, including when the error email was sent | `1` |
 | Email build or delivery failure | `1` |
 | State store read failure | `1` |
@@ -748,6 +754,8 @@ The tests verify these functions:
 - Item budget scaling and limits
 - EST and EDT display
 - Window interval and subject formatting
+- Actor call with the actor's default build
+- Empty-scrape subject, warning, and scan-window hold
 - Long email-header date formatting
 - Eastern start and completion times
 - Source-style HTML layout
@@ -856,6 +864,7 @@ access adapt to the installed version.
 | `State store unavailable` in the email | The Apify API rejected a state read. | Check the Apify token and the Apify status. The next clean run scans the missed interval. |
 | `Apify actor completed without a default dataset ID` | The actor result has no dataset ID. | Examine the actor run in the Apify console. |
 | The subject contains `No New Posts` with a short interval. | The run started soon after the previous run. | No action is necessary. The window moved forward. |
+| The subject contains `Scraper Returned Nothing`. | The actor returned zero items. One empty run can be a quiet window; several in a row usually mean a broken actor build. | Examine the actor runs in the Apify console. The window holds, so the first run after a fix scans the missed interval. |
 | `Gmail authentication failed` | Gmail rejected the user or app password. | Use the Gmail address and a valid app password. |
 | `Email attempt 1/3 failed` | An SMTP or network error occurred. | Wait for the automatic retry. |
 | The email has a red banner. | A collection step failed. | Read the banner and examine the actor or dataset. |

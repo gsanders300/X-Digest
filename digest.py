@@ -668,9 +668,13 @@ def build_plain_digest(
     return "\n".join(lines)
 
 
-def subject_line(posts: list, scrape_error: str | None, window_label: str) -> str:
+def subject_line(
+    posts: list, scrape_error: str | None, window_label: str, scrape_empty: bool = False
+) -> str:
     if scrape_error:
         return f"X Digest - Scraper Error ({window_label})"
+    if scrape_empty:
+        return f"X Digest - Scraper Returned Nothing ({window_label})"
     if not posts:
         return f"X Digest - No New Posts ({window_label})"
     count = len(posts)
@@ -686,12 +690,14 @@ def send_email(
     warnings: list[str] | None = None,
     usage: dict | None = None,
     job_start: datetime | None = None,
+    scrape_empty: bool = False,
 ) -> bool:
     """Send the digest. Returns True only when Gmail accepted the message.
 
     today_str is the digest date shown in the header (defaults to the send
-    date), subject_label is the interval or date in the subject line, and
-    window_str is the human "Posts scanned" interval.
+    date), subject_label is the interval or date in the subject line,
+    window_str is the human "Posts scanned" interval, and scrape_empty marks
+    a scrape that returned zero items.
     """
     if not today_str:
         today_str = datetime.now(display_timezone()).strftime("%Y-%m-%d")
@@ -704,7 +710,7 @@ def send_email(
 
     try:
         msg = EmailMessage()
-        msg["Subject"] = subject_line(posts, scrape_error, subject_label)
+        msg["Subject"] = subject_line(posts, scrape_error, subject_label, scrape_empty)
         msg["From"] = GMAIL_USER
         msg["To"] = RECIPIENT_EMAIL
 
@@ -864,6 +870,7 @@ def main():
     # A failure here still produces an email that carries the error banner.
     new_posts = []
     scrape_error = None
+    scrape_empty = False
     try:
         handles = load_handles(HANDLES_FILE)
         allowed_handles = {handle.lower() for handle in handles}
@@ -879,7 +886,21 @@ def main():
             )
 
         raw_posts = fetch_dataset_items(client, dataset_id)
-        if not args.dataset_id and len(raw_posts) >= max_items:
+        # A broken actor build returns an empty dataset and still reports
+        # SUCCEEDED, which looks exactly like a quiet window. Flag it.
+        scrape_empty = not raw_posts
+        if scrape_empty:
+            empty_warning = (
+                "The scraper returned no items at all. A quiet window can do this, "
+                "but repeated empty runs usually mean the Apify actor is broken."
+            )
+            if mode == "sliding":
+                empty_warning += (
+                    " The scan window was not moved forward, so the next run scans "
+                    "this interval again."
+                )
+            warnings.append(empty_warning)
+        elif not args.dataset_id and len(raw_posts) >= max_items:
             warnings.append(
                 f"The scrape returned the full result cap of {max_items} items; "
                 "some posts may be missing from this digest."
@@ -913,12 +934,14 @@ def main():
         warnings=warnings,
         usage=usage,
         job_start=job_start,
+        scrape_empty=scrape_empty,
     )
 
     # Persist. Seen IDs advance only when there are new posts; the scan-window
     # metadata advances on every clean sliding run - including zero-post runs -
-    # or the same interval would be re-scanned forever. Failed sends and scrape
-    # errors advance neither, so the missed interval is re-scanned next run.
+    # or the same interval would be re-scanned forever. Failed sends, scrape
+    # errors, and empty scrapes do not advance it, so that interval is
+    # re-scanned next run (after an actor outage, the fixed run backfills it).
     save_failed = False
     if sent:
         try:
@@ -929,7 +952,9 @@ def main():
                 )
             else:
                 print("No new posts.")
-            if mode == "sliding" and not scrape_error:
+            if mode == "sliding" and scrape_empty:
+                print("Scan window not advanced: the scraper returned no items.")
+            elif mode == "sliding" and not scrape_error:
                 save_run_metadata(
                     kvs_client,
                     window_start,
