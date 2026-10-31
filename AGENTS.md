@@ -149,9 +149,11 @@ Python 3.11 and 3.14 for each push to `main` and each pull request. It needs no 
 ## Releases
 
 Semantic versioning; `version` in `pyproject.toml` must equal the latest `vX.Y.Z` tag. Follow
-the README "Releases" steps: bump the version, `uv lock`, push, wait for Tests to pass, then
-`gh release create vX.Y.Z --generate-notes`. The private runner only picks up a release when
-its `ref:` is bumped.
+the README "Releases" steps: bump the version, `uv lock`, push, wait for Tests to pass.
+`release.yml` tags `v<version>` from `pyproject.toml` on push to `main` and skips when that
+tag exists, so a code change that should ship must bump the version in the same push. Don't
+run `gh release create` by hand. The private runner only picks up a release when its `ref:`
+is bumped.
 
 ## Verification
 

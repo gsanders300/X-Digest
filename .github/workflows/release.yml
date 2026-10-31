@@ -1,7 +1,7 @@
 name: Release
 
-# Every push to the default branch gets the next version: patch by default, or minor/major
-# when the commit message contains #minor or #major.
+# A push to the default branch releases the version in pyproject.toml when that tag does
+# not exist yet. Pushes that don't bump the version (docs, CI) release nothing.
 on:
   push:
     branches: ['**']
@@ -27,17 +27,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          latest=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1)
-          if [ -z "$latest" ]; then
-            next="v1.0.0"
-          else
-            IFS=. read -r major minor patch <<< "${latest#v}"
-            if [[ "$MESSAGE" == *"#major"* ]]; then
-              next="v$((major + 1)).0.0"
-            elif [[ "$MESSAGE" == *"#minor"* ]]; then
-              next="v${major}.$((minor + 1)).0"
-            else
-              next="v${major}.${minor}.$((patch + 1))"
-            fi
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          next="v${version}"
+          if git rev-parse -q --verify "refs/tags/${next}" >/dev/null; then
+            echo "${next} already exists; bump version in pyproject.toml to release."
+            exit 0
           fi
           gh release create "$next" --target "$GITHUB_SHA" --title "$next" --notes "$MESSAGE"
