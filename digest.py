@@ -347,7 +347,9 @@ def trigger_apify_scrape(
     # Timeout parameter names differ between apify-client 1.x/2.x (ints) and
     # 3.x (timedeltas), so pick whichever this installed version accepts.
     call_params = inspect.signature(actor_client.call).parameters
-    call_kwargs = {"run_input": actor_input, "memory_mbytes": 1024, "build": "latest"}
+    # No "build" argument: the actor's default build is its production line.
+    # Its "latest" tag points at a stale 0.0.x line that returns empty datasets.
+    call_kwargs = {"run_input": actor_input, "memory_mbytes": 1024}
     if "run_timeout" in call_params:  # apify-client 3.x
         call_kwargs["run_timeout"] = timedelta(seconds=ACTOR_TIMEOUT_SECONDS)
         call_kwargs["wait_duration"] = timedelta(seconds=ACTOR_WAIT_SECONDS)

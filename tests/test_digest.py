@@ -334,6 +334,28 @@ class DigestTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "is empty"):
                 digest.load_handles(path)
 
+    def test_scrape_uses_actor_default_build(self):
+        # The actor's "latest" tag is a stale line that returns empty datasets.
+        calls = []
+
+        class FakeActor:
+            def call(self, run_input=None, memory_mbytes=None, run_timeout=None,
+                     wait_duration=None, **kwargs):
+                calls.append(kwargs)
+                return {"defaultDatasetId": "ds1"}
+
+        class FakeClient:
+            def actor(self, _name):
+                return FakeActor()
+
+        start = datetime(2026, 9, 20, 6, tzinfo=timezone.utc)
+        end = datetime(2026, 9, 20, 12, tzinfo=timezone.utc)
+
+        dataset_id = digest.trigger_apify_scrape(FakeClient(), ["user1"], start, end, 30)
+
+        self.assertEqual(dataset_id, "ds1")
+        self.assertNotIn("build", calls[0])
+
 
 if __name__ == "__main__":
     unittest.main()
