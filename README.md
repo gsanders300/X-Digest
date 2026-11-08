@@ -734,12 +734,12 @@ To make a release:
 
 1. Change `version` in `pyproject.toml`.
 2. Run `uv lock`. This command writes the new version to `uv.lock`.
-3. Commit the two files and push to `main`. The **Release** workflow
-   (`.github/workflows/release.yml`) makes the tag `vX.Y.Z` and the GitHub release from
-   the version in `pyproject.toml`. The commit message becomes the release notes. A push
-   that does not change the version makes no release.
-4. Make sure that the **Tests** workflow passes.
-5. In each private repository that runs this code, change `ref` to the new tag.
+3. Commit the two files and push to `main`. When the **Tests** workflow passes, the
+   **Release** workflow (`.github/workflows/release.yml`) makes the tag `vX.Y.Z` and the
+   GitHub release from the version in `pyproject.toml`. The commit message becomes the
+   release notes. A push that does not change the version, or that fails Tests, makes no
+   release.
+4. In each private repository that pins a tag in `ref`, change `ref` to the new tag.
 
 ## Tests and verification
 

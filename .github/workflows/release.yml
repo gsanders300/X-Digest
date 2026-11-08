@@ -1,31 +1,39 @@
 name: Release
 
-# A push to the default branch releases the version in pyproject.toml when that tag does
-# not exist yet. Pushes that don't bump the version (docs, CI) release nothing.
+# After Tests pass on a push to main, release the version in pyproject.toml when that tag
+# does not exist yet. Pushes that don't bump the version (docs, CI) release nothing.
+# Gated on Tests because the private runner uses the latest release automatically.
 on:
-  push:
-    branches: ['**']
+  workflow_run:
+    workflows: [Tests]
+    types: [completed]
+    branches: [main]
 
-# One release at a time per branch so two quick pushes can't claim the same version.
+# One release at a time so two quick pushes can't claim the same version.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   release:
-    # Only the default branch of gsanders300's own repos cuts releases; copies made by others skip this.
-    if: github.repository_owner == 'gsanders300' && github.ref_name == github.event.repository.default_branch
+    # Only gsanders300's own repo cuts releases; copies made by others skip this.
+    if: >-
+      github.repository_owner == 'gsanders300'
+      && github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0  # full history so existing version tags are visible
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
-          MESSAGE: ${{ github.event.head_commit.message }}
+          MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+          TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
           next="v${version}"
@@ -33,4 +41,4 @@ jobs:
             echo "${next} already exists; bump version in pyproject.toml to release."
             exit 0
           fi
-          gh release create "$next" --target "$GITHUB_SHA" --title "$next" --notes "$MESSAGE"
+          gh release create "$next" --target "$TARGET_SHA" --title "$next" --notes "$MESSAGE"

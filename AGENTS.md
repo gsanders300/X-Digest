@@ -11,7 +11,7 @@ package structure.
 
 This is the **public** code repo. `handles.txt` here is an example list. The owner's real
 handle list, secrets, and live workflow live in a private repo that checks this repo out
-into `app/` at a pinned release tag and runs `uv run app/digest.py` from its own root
+into `app/` at the latest release tag and runs `uv run app/digest.py` from its own root
 (README "Keep your handle list private"). Never commit personal handles, email addresses,
 dataset IDs, or secrets here.
 
@@ -155,11 +155,13 @@ Its `version-bump` job fails when `digest.py` or `template.html` differ from the
 ## Releases
 
 Semantic versioning; `version` in `pyproject.toml` must equal the latest `vX.Y.Z` tag. Follow
-the README "Releases" steps: bump the version, `uv lock`, push, wait for Tests to pass.
-`release.yml` tags `v<version>` from `pyproject.toml` on push to `main` and skips when that
-tag exists, so a code change that should ship must bump the version in the same push. Don't
-run `gh release create` by hand. The private runner only picks up a release when its `ref:`
-is bumped.
+the README "Releases" steps: bump the version, `uv lock`, push.
+`release.yml` runs on `workflow_run` after Tests succeeds for a push to `main`, tags
+`v<version>` from `pyproject.toml`, and skips when that tag exists, so a code change that
+should ship must bump the version in the same push. Don't run `gh release create` by hand.
+The owner's private runner checks out the **latest release** on every run, so a new release
+goes live at its next digest. Keep the Tests gate: it is the only thing between a push and
+the live digest.
 
 ## Verification
 
