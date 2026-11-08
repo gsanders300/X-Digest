@@ -754,7 +754,7 @@ latest tag but the version in `pyproject.toml` is still that tag's version.
 Run the tests from the repository root:
 
 ```powershell
-uv run --with "apify-client>=1.8.0" --with "jinja2>=3.1.0" --with "tzdata>=2024.1" python -m unittest discover -s tests -v
+uv run --with "apify-client>=1.8.0,<4" --with "jinja2>=3.1.0" --with "tzdata>=2024.1" python -m unittest discover -s tests -v
 ```
 
 The tests verify these functions:
@@ -838,7 +838,7 @@ Jinja2 automatic escaping is active for the HTML template.
 `digest.py` uses PEP 723 inline script metadata. This metadata contains the runtime
 dependencies:
 
-- `apify-client>=1.8.0`
+- `apify-client>=1.8.0,<4`
 - `jinja2>=3.1.0`
 - `tzdata>=2024.1`
 

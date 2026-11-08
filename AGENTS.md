@@ -5,7 +5,8 @@
 A single-file cron-style job: scrape posts since the last run from the X accounts in
 `handles.txt` via an Apify actor, de-duplicate against remembered post IDs, render
 `template.html` with Jinja2, and email the digest over Gmail SMTP. The scan window slides
-automatically: run it every 6 hours and each run covers the 6 hours since the previous one.
+automatically: each run covers the time since the previous one. The owner's runner fires
+every 8 hours.
 No web service, no linter config. The single-file layout is final — do not re-introduce a
 package structure.
 
@@ -21,7 +22,7 @@ dataset IDs, or secrets here.
 uv run --env-file .env digest.py                 # local full run (scrapes = costs Apify credits)
 uv run --env-file .env digest.py --dataset-id ID # reuse an existing Apify dataset, no scrape
 uv run --env-file .env digest.py --dataset-id ID --window-date 2026-09-19  # replay, pin the UTC day
-uv run --with "apify-client>=1.8.0" --with "jinja2>=3.1.0" --with "tzdata>=2024.1" \
+uv run --with "apify-client>=1.8.0,<4" --with "jinja2>=3.1.0" --with "tzdata>=2024.1" \
   python -m unittest discover -s tests           # run the test suite
 ```
 
@@ -82,7 +83,7 @@ All state lives in a **named Apify key-value store**, not in the repo: store
 - Handles are batched 8-per-search-term into
   `from:a OR from:b ... -filter:replies since_time:<epoch> until_time:<epoch>` — unix-epoch
   operators, precise to the second. This is deliberate on a pay-per-result actor: date-only
-  `since:`/`until:` would re-fetch (and re-bill) the same day's posts on every 6-hour run.
+  `since:`/`until:` would re-fetch (and re-bill) the same day's posts on every run.
 - `maxItems` scales with handle count **and** window length:
   `max(75, ceil(5 * handles * window_hours / 24))`, capped at 3 days' worth
   (`max_items_budget`) so a long outage gap cannot explode the cost ceiling. When a scrape
@@ -131,8 +132,10 @@ All state lives in a **named Apify key-value store**, not in the repo: store
   drifts.
 - Apify cost footer comes from `client.user().limits()`: `current.monthly_usage_usd` and
   `limits.max_monthly_usage_usd`. apify-client 3.x returns pydantic models, older 1.x/2.x
-  returns plain camelCase dicts, and the inline metadata allows `>=1.8.0` — hence the `_field`
-  helper. A failure here is non-fatal: it becomes a yellow warning entry.
+  returns plain camelCase dicts, and the inline metadata allows `>=1.8.0,<4` — hence the
+  `_field` helper. A failure here is non-fatal: it becomes a yellow warning entry. The `<4`
+  cap keeps an untested major release out of the live digest (the runner follows the latest
+  release); raise it only after the suite passes on the new major, in every place it's written.
 - Post timestamps come from unstable actor keys (`createdAt`/`created_at`/`date`/`timestamp`),
   so `parse_post_date` handles epoch numbers, ISO-8601, and the legacy
   `Fri Sep 19 09:15:00 +0000 2025` form, and returns `None` rather than raising.

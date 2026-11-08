@@ -31,7 +31,7 @@ jobs:
 
       - name: Run tests
         run: >-
-          uv run --with "apify-client>=1.8.0" --with "jinja2>=3.1.0" --with "tzdata>=2024.1"
+          uv run --with "apify-client>=1.8.0,<4" --with "jinja2>=3.1.0" --with "tzdata>=2024.1"
           python -m unittest discover -s tests -v
 
   # release.yml only releases a version whose tag doesn't exist yet, so shipped code

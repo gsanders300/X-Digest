@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -398,7 +399,7 @@ class DigestTests(unittest.TestCase):
             "X Digest - Scraper Error (replay)",
         )
 
-    def _run_sliding_main(self, raw_items, seen_ids):
+    def _run_sliding_main(self, raw_items, seen_ids, handles=(["user1"], {})):
         last_end = datetime(2026, 9, 20, 6, tzinfo=timezone.utc)
         env = {
             "APIFY_TOKEN": "t",
@@ -415,7 +416,7 @@ class DigestTests(unittest.TestCase):
                     get_state_store_client=mock.DEFAULT,
                     load_seen_ids=mock.Mock(return_value=seen_ids),
                     load_run_metadata=mock.Mock(return_value={"window_end": last_end}),
-                    load_handles=mock.Mock(return_value=(["user1"], {})),
+                    load_handles=mock.Mock(return_value=handles),
                     trigger_apify_scrape=mock.Mock(return_value="ds1"),
                     fetch_dataset_items=mock.Mock(return_value=raw_items),
                     fetch_apify_usage=mock.Mock(return_value=(None, None)),
@@ -440,6 +441,17 @@ class DigestTests(unittest.TestCase):
 
         self.assertFalse(send_email.call_args.kwargs["scrape_empty"])
         save_run_metadata.assert_called_once()
+
+    def test_keyword_hidden_count_shows_in_scan_window_line(self):
+        item = {"id": "1", "author": {"userName": "user1"}, "text": "Church today"}
+        handles = (["user1"], {"user1": re.compile("church", re.IGNORECASE)})
+        send_email, _ = self._run_sliding_main([item], [], handles=handles)
+
+        self.assertTrue(
+            send_email.call_args.kwargs["window_str"].endswith(
+                ", 1 hidden by keyword rules"
+            )
+        )
 
 
 if __name__ == "__main__":

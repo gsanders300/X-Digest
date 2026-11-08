@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
-#     "apify-client>=1.8.0",
+#     "apify-client>=1.8.0,<4",
 #     "jinja2>=3.1.0",
 #     "tzdata>=2024.1",
 # ]
@@ -934,6 +934,9 @@ def main():
             excluded_keywords=excluded_keywords,
         )
         warnings.extend(drift_warnings(parse_stats))
+        if parse_stats["excluded_keyword"]:
+            # Shown beside the scan window so an over-broad rule gets noticed.
+            window_str += f", {parse_stats['excluded_keyword']} hidden by keyword rules"
     except Exception as e:
         scrape_error = f"{type(e).__name__}: {e}"
         print(f"Error: Scrape or fetch failed: {scrape_error}")
