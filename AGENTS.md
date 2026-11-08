@@ -93,6 +93,10 @@ All state lives in a **named Apify key-value store**, not in the repo: store
   `run_timeout`/`wait_duration` timedeltas in 3.x), so `trigger_apify_scrape` picks them by
   inspecting the installed `call` signature — keep that when touching the call.
 - `handles.txt` is one handle per line; leading `@` and `#` comment lines are stripped.
+  An optional `handle: keyword, some phrase` suffix excludes that handle's posts whose text
+  contains a keyword (whole word/phrase, case-insensitive). `load_handles` returns
+  `(handles, excluded)`; keyword drops are a stdout-only `excluded_keyword` stat. Never put
+  the `:` suffix in a search term.
 - Actor items are shape-unstable, hence the chained `.get()` fallbacks for id/author/text/url.
   Keep that defensive style when editing `parse_post_items`.
 - `parse_post_items` returns `(posts, stats)`; `stats` counts drops by reason. Unmonitored-

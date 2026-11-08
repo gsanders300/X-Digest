@@ -337,6 +337,35 @@ class DigestTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "is empty"):
                 digest.load_handles(path)
 
+    def test_handles_file_keyword_exclusions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "handles.txt"
+            path.write_text(
+                "# comment\n@Sama : church, Sunday service\nkarpathy\nylecun:\n",
+                encoding="utf-8",
+            )
+            handles, excluded = digest.load_handles(path)
+
+        self.assertEqual(handles, ["Sama", "karpathy", "ylecun"])
+        self.assertEqual(set(excluded), {"sama"})
+
+        items = [
+            {"id": "1", "author": {"userName": "sama"}, "text": "Off to CHURCH."},
+            {"id": "2", "author": {"userName": "sama"}, "text": "A sunday  service"},
+            {"id": "3", "author": {"userName": "sama"}, "text": "Sunday service today"},
+            {"id": "4", "author": {"userName": "sama"}, "text": "Reading Churchill"},
+            {"id": "5", "author": {"userName": "karpathy"}, "text": "church"},
+        ]
+        posts, stats = digest.parse_post_items(
+            items,
+            set(),
+            allowed_handles={"sama", "karpathy"},
+            excluded_keywords=excluded,
+        )
+
+        self.assertEqual([post["id"] for post in posts], ["2", "4", "5"])
+        self.assertEqual(stats["excluded_keyword"], 2)
+
     def test_scrape_uses_actor_default_build(self):
         # The actor's "latest" tag is a stale line that returns empty datasets.
         calls = []
@@ -386,7 +415,7 @@ class DigestTests(unittest.TestCase):
                     get_state_store_client=mock.DEFAULT,
                     load_seen_ids=mock.Mock(return_value=seen_ids),
                     load_run_metadata=mock.Mock(return_value={"window_end": last_end}),
-                    load_handles=mock.Mock(return_value=["user1"]),
+                    load_handles=mock.Mock(return_value=(["user1"], {})),
                     trigger_apify_scrape=mock.Mock(return_value="ds1"),
                     fetch_dataset_items=mock.Mock(return_value=raw_items),
                     fetch_apify_usage=mock.Mock(return_value=(None, None)),

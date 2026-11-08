@@ -180,15 +180,28 @@ def load_handles(filepath):
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"Handles configuration file not found: {filepath}")
 
+    """Return (handles, excluded) where excluded maps a lowercase handle to a
+    regex of its excluded keywords. A line reads `handle` or
+    `handle: keyword, another phrase` (X handles cannot contain ':')."""
     handles = []
+    excluded = {}
     with open(filepath, "r", encoding="utf-8") as f:
         for line in f:
-            clean = line.strip().lstrip("@")
-            if clean and not clean.startswith("#"):
-                handles.append(clean)
+            clean = line.strip()
+            if not clean or clean.startswith("#"):
+                continue
+            handle, _, keywords = clean.partition(":")
+            handle = handle.strip().lstrip("@")
+            handles.append(handle)
+            words = [re.escape(w.strip()) for w in keywords.split(",") if w.strip()]
+            if words:
+                # Whole word or phrase, case-insensitive: "church" skips "Churchill".
+                excluded[handle.lower()] = re.compile(
+                    rf"(?<!\w)(?:{'|'.join(words)})(?!\w)", re.IGNORECASE
+                )
     if not handles:
         raise ValueError(f"Handles configuration file is empty: {filepath}")
-    return handles
+    return handles, excluded
 
 
 def chunk_handles(handles, chunk_size=8):
@@ -396,6 +409,7 @@ def parse_post_items(
     allowed_handles: set[str] | None = None,
     window_start: datetime | None = None,
     window_end: datetime | None = None,
+    excluded_keywords: dict | None = None,
 ):
     """Parse actor items into posts.
 
@@ -409,6 +423,7 @@ def parse_post_items(
         "bad_timestamp": 0,
         "outside_window": 0,
         "emoji_only": 0,
+        "excluded_keyword": 0,
     }
 
     for item in raw_items:
@@ -450,6 +465,11 @@ def parse_post_items(
         if allowed_handles is not None and author.lower() not in allowed_handles:
             stats["unmonitored"] += 1
             print(f"Ignored item from unmonitored author @{author} (ID: {pid})")
+            continue
+        keyword_re = (excluded_keywords or {}).get(author.lower())
+        if keyword_re and keyword_re.search(text):
+            stats["excluded_keyword"] += 1
+            print(f"Ignored item from @{author} with an excluded keyword (ID: {pid})")
             continue
         if is_emoji_only(text):
             stats["emoji_only"] += 1
@@ -872,7 +892,7 @@ def main():
     scrape_error = None
     scrape_empty = False
     try:
-        handles = load_handles(HANDLES_FILE)
+        handles, excluded_keywords = load_handles(HANDLES_FILE)
         allowed_handles = {handle.lower() for handle in handles}
         if window_start is not None and window_end is not None:
             window_hours = (window_end - window_start).total_seconds() / 3600.0
@@ -911,6 +931,7 @@ def main():
             allowed_handles=allowed_handles,
             window_start=window_start,
             window_end=window_end,
+            excluded_keywords=excluded_keywords,
         )
         warnings.extend(drift_warnings(parse_stats))
     except Exception as e:

@@ -312,6 +312,7 @@ The program sends an item only when all these conditions are true:
 - The item has a post ID.
 - The ID is not in the state store.
 - The author is in `handles.txt`.
+- The text has none of the excluded keywords for that author (see [Handle file](#handle-file)).
 - The timestamp is valid.
 - The timestamp is in the scan window. (Replay mode does not apply this condition.)
 - The item is not an actor test or billing item.
@@ -338,8 +339,14 @@ Use this format:
 # AI researchers
 sama
 @karpathy
-ylecun
+ylecun: church, sunday service
 ```
+
+To skip some posts from a handle, put a colon after the handle and a comma-separated list
+of keywords or phrases. The program removes a post from that handle when its text contains
+one of them as a whole word or phrase, in any letter case. For example, `church` removes
+"Off to Church" but not "Churchill" or "churches". Add `churches` too if you want that
+word removed. The rule applies only to the handle on the same line.
 
 The program does these actions:
 
