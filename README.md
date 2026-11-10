@@ -747,7 +747,8 @@ The test suite uses the Python standard `unittest` module. The tests do not call
 Gmail.
 
 The **Tests** workflow (`.github/workflows/tests.yml`) runs the tests and the metadata
-check on each push to `main` and on each pull request. It uses Python 3.11 and 3.14. It
+check on each push to `main`, on each pull request, and every Saturday at 3am ET (EST) to
+catch breaking dependency releases. It uses Python 3.11 and 3.14. It
 needs no secrets. It also fails when `digest.py` or `template.html` changed since the
 latest tag but the version in `pyproject.toml` is still that tag's version.
 

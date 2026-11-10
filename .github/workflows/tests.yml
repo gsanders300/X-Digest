@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Weekly run against the newest dependency releases the inline ranges allow.
+  schedule:
+    - cron: "0 8 * * 6"   # 3am ET Saturday (EST). Use "0 7 * * 6" in EDT.
+  workflow_dispatch:
 
 jobs:
   test:
