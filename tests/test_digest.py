@@ -193,6 +193,15 @@ class DigestTests(unittest.TestCase):
         for text in ["", "https://t.co/x", "wow 🔥", "This 👇", "100", "^^", "!!"]:
             self.assertFalse(digest.is_emoji_only(text), text)
 
+    def test_fix_mojibake(self):
+        for clean in ["That’s it", "“quoted”", "café 🔥", "naïve — ok", "plain"]:
+            mangled = "".join(digest._cp1252_char(b) for b in clean.encode("utf-8"))
+            self.assertEqual(digest.fix_mojibake(mangled), clean, mangled)
+            self.assertEqual(digest.fix_mojibake(clean), clean)
+        self.assertEqual(digest.fix_mojibake("Thatâ€™s 🔥"), "That’s 🔥")
+        for clean in ["Strauß’ Walzer", "„Viel Spaß“", "CAFÉ…", "“CAFÉ”", "“café…”"]:
+            self.assertEqual(digest.fix_mojibake(clean), clean)
+
     def test_parser_skips_window_filter_when_no_window_given(self):
         items = [
             {

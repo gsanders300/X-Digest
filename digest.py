@@ -394,6 +394,35 @@ _URL_RE = re.compile(r"https?://\S+")
 _EMOJI_CATEGORIES = {"So", "Sk", "Mn", "Me", "Cf"}
 
 
+def _cp1252_char(b: int) -> str:
+    # 5 bytes are undefined in cp1252; mis-decoders pass them through as U+0080-U+009F.
+    try:
+        return bytes([b]).decode("cp1252")
+    except UnicodeDecodeError:
+        return chr(b)
+
+
+_CONT = "[" + re.escape("".join(_cp1252_char(b) for b in range(0x80, 0xC0))) + "]"
+# A UTF-8 multibyte sequence that was decoded as cp1252, e.g. "’" shown as "â€™".
+# Leads are narrowed so clean text like "Strauß’" or "CAFÉ…" is left alone.
+# shortcut: repairs only Latin-1 (Â/Ã), punctuation (â) and emoji (ð); widen if
+# mangled Cyrillic, Greek or CJK shows up in a digest.
+_MOJIBAKE_RE = re.compile(f"[ÂÃ]{_CONT}|â{_CONT}{{2}}|ð{_CONT}{{3}}")
+
+
+def _fix_one(match: re.Match) -> str:
+    raw = bytes(ord(c) if ord(c) < 0x100 else c.encode("cp1252")[0] for c in match.group())
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return match.group()
+
+
+def fix_mojibake(text: str) -> str:
+    """Undo UTF-8 text that was decoded as cp1252 somewhere upstream."""
+    return _MOJIBAKE_RE.sub(_fix_one, text)
+
+
 def is_emoji_only(text: str) -> bool:
     """True when the text, ignoring URLs and whitespace, is nothing but emoji -
     a forward with no commentary of its own."""
@@ -450,7 +479,7 @@ def parse_post_items(
             or item.get("username")
             or "User"
         )
-        text = (item.get("text") or item.get("full_text") or "").strip()
+        text = fix_mojibake((item.get("text") or item.get("full_text") or "").strip())
 
         # Filter out developer synthetic/mock messages and billing notices
         text_lower = text.lower()

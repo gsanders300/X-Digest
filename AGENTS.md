@@ -107,6 +107,9 @@ All state lives in a **named Apify key-value store**, not in the repo: store
   are dropped on purpose: they are the actor's billing/mock placeholders.
 - Items whose text is nothing but emoji once URLs and whitespace are removed
   (`is_emoji_only`) are dropped as no-commentary forwards (stdout-only `emoji_only` stat).
+- Post text arrives with occasional mojibake (UTF-8 decoded as cp1252: `â€™` for `’`).
+  `fix_mojibake` repairs it before any filtering. Its lead characters are deliberately
+  narrow (`Â`/`Ã`, `â`, `ð`) so clean text like `Strauß’` is never rewritten.
 
 ## Email pipeline
 

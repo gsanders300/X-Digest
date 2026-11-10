@@ -1,6 +1,6 @@
 [project]
 name = "x-digest"
-version = "1.2.0"
+version = "1.2.1"
 description = "Email digest of new posts from monitored X accounts"
 readme = "README.md"
 authors = [
