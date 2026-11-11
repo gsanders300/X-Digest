@@ -202,6 +202,22 @@ class DigestTests(unittest.TestCase):
         for clean in ["Strauß’ Walzer", "„Viel Spaß“", "CAFÉ…", "“CAFÉ”", "“café…”"]:
             self.assertEqual(digest.fix_mojibake(clean), clean)
 
+    def test_html_entities_in_post_text_are_not_double_escaped(self):
+        items = [{
+            "id": "amp",
+            "author": {"userName": "sama"},
+            "text": "Fable 5.2 &amp; Gemini &lt;3 That’s “it” 🔥",
+        }]
+        posts, _ = digest.parse_post_items(items, set(), allowed_handles={"sama"})
+        self.assertEqual(posts[0]["text"], "Fable 5.2 & Gemini <3 That’s “it” 🔥")
+
+        groups = digest.group_posts_by_author(posts)
+        html = digest.render_html_template(posts, "2026-09-20", groups)
+        self.assertIn("Fable 5.2 &amp; Gemini &lt;3 That’s “it” 🔥", html)
+        self.assertNotIn("&amp;amp;", html)
+        plain = digest.build_plain_digest(posts, "2026-09-20", groups)
+        self.assertIn("Fable 5.2 & Gemini <3 That’s “it” 🔥", plain)
+
     def test_parser_skips_window_filter_when_no_window_given(self):
         items = [
             {

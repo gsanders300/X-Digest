@@ -9,6 +9,7 @@
 
 import argparse
 import functools
+import html
 import inspect
 import math
 import os
@@ -479,7 +480,10 @@ def parse_post_items(
             or item.get("username")
             or "User"
         )
-        text = fix_mojibake((item.get("text") or item.get("full_text") or "").strip())
+        # X sends text HTML-escaped ("&amp;"); unescape once so autoescape doesn't double it.
+        text = html.unescape(
+            fix_mojibake((item.get("text") or item.get("full_text") or "").strip())
+        )
 
         # Filter out developer synthetic/mock messages and billing notices
         text_lower = text.lower()
