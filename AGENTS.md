@@ -170,6 +170,8 @@ tag while `pyproject.toml` still holds that tag's version. The live runner's Pyt
 (`python-version` in `private-digest.yml`) must be a version this matrix covers.
 
 Every `uses:` is pinned to a commit SHA with a version comment; keep new ones pinned.
+Security updates ignore the majors rule, so they can arrive as major versions and auto-merge
+after Tests (Geoff accepted this on 2026-11-11). Dependabot's PyPI view can lag by days.
 Dependency updates are automated (README "Releases"): `.github/dependabot.yml` opens
 grouped Python and Actions PRs Saturday 3am ET, majors ignored. The uv entry needs
 `allow: dependency-type: all` (the default checks only the 3 direct dependencies, not the

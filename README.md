@@ -729,7 +729,9 @@ To make a release:
 
 Dependabot (`.github/dependabot.yml`) opens two grouped pull requests every Saturday at
 3am ET: one for the Python packages and one for the GitHub Actions. Major versions are
-ignored. The Python check covers every package in `uv.lock`, including the dependencies of
+ignored, except in Dependabot security updates, which can be a major version and merge
+like any other update once Tests pass. Dependabot's view of PyPI can lag by a few days, so
+a release from the last few days may wait a week. The Python check covers every package in `uv.lock`, including the dependencies of
 the direct dependencies (`allow: dependency-type: all`). It skips `handles.txt`, which
 Dependabot would otherwise read as a pip requirements file. The **Dependabot auto-merge** workflow increases the patch version on the Python
 pull request and turns on auto-merge for both. A ruleset on `main` holds the merge until
