@@ -171,7 +171,12 @@ tag while `pyproject.toml` still holds that tag's version. The live runner's Pyt
 
 Every `uses:` is pinned to a commit SHA with a version comment; keep new ones pinned.
 Dependency updates are automated (README "Releases"): `.github/dependabot.yml` opens
-grouped Python and Actions PRs Saturday 3am ET, majors ignored.
+grouped Python and Actions PRs Saturday 3am ET, majors ignored. The uv entry needs
+`allow: dependency-type: all` (the default checks only the 3 direct dependencies, not the
+rest of `uv.lock`) and `exclude-paths: handles.txt` (Dependabot parses `.txt` files as pip
+requirements and looked the handles up on PyPI). A Dependabot Updates run log should show
+`"allowed-updates":[{"dependency-type":"all"}]` and a `Dependency Snapshot` listing exactly
+the `uv.lock` packages.
 `dependabot-auto-merge.yml` bumps the patch version on the Python PR and enables
 auto-merge with the `DEPENDABOT_AUTOMERGE_TOKEN` Dependabot secret (a GITHUB_TOKEN push
 or merge would not start Tests or Release). That job holds a write token, so it must
