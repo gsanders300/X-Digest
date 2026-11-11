@@ -705,8 +705,11 @@ To run the job on your computer, clone both repositories into the same parent fo
 your `.env` file in the private folder, and run the script from that folder:
 
 ```powershell
-uv run --env-file .env ../X-Digest/digest.py
+uv run --project ../X-Digest --env-file .env ../X-Digest/digest.py
 ```
+
+The `--project` option tells uv to use the dependencies of the X-Digest folder. The
+private digest uses the same command with `--project app`, and it runs on Python 3.14.
 
 ## Releases
 
@@ -724,21 +727,39 @@ To make a release:
    release notes. A push that does not change the version, or that fails Tests, makes no
    release.
 
+Dependabot (`.github/dependabot.yml`) opens two grouped pull requests every Saturday at
+3am ET: one for the Python packages and one for the GitHub Actions. Major versions are
+ignored. The **Dependabot auto-merge** workflow increases the patch version on the Python
+pull request and turns on auto-merge for both. A ruleset on `main` holds the merge until
+the Tests checks pass, so each Python package update becomes a patch release. The
+**Dependabot watch** workflow opens an issue when a Dependabot pull request stays open
+for more than one day.
+
+The automation needs these settings:
+
+- A fine-grained personal access token for this repository only, with read and write
+  access to Contents, Pull requests, and Workflows. Store it as the Dependabot secret
+  `DEPENDABOT_AUTOMERGE_TOKEN`. A push or merge made with the default `GITHUB_TOKEN`
+  does not start the Tests or Release workflows.
+- **Allow auto-merge** in the repository settings.
+- A ruleset on `main` that requires the `test (3.11)`, `test (3.14)`, and `version-bump`
+  checks, with the repository admin role in the bypass list.
+
 ## Tests and verification
 
 The test suite uses the Python standard `unittest` module. The tests do not call Apify or
 Gmail.
 
-The **Tests** workflow (`.github/workflows/tests.yml`) runs the tests and the metadata
-check on each push to `main`, on each pull request, and every Saturday at 3am ET (EST) to
-catch breaking dependency releases. It uses Python 3.11 and 3.14. It
-needs no secrets. It also fails when `digest.py` or `template.html` changed since the
-latest tag but the version in `pyproject.toml` is still that tag's version.
+The **Tests** workflow (`.github/workflows/tests.yml`) runs the tests and the lock check
+on each push to `main` and on each pull request. It uses Python 3.11 and 3.14. It needs no
+secrets. It fails when `uv.lock` does not agree with `pyproject.toml`. It also fails when
+`digest.py`, `template.html`, `pyproject.toml`, or `uv.lock` changed since the latest tag
+but the version in `pyproject.toml` is still that tag's version.
 
 Run the tests from the repository root:
 
 ```powershell
-uv run --with "apify-client>=1.8.0,<4" --with "jinja2>=3.1.0" --with "tzdata>=2024.1" python -m unittest discover -s tests -v
+uv run --locked python -m unittest discover -s tests -v
 ```
 
 The tests verify these functions:
@@ -760,10 +781,10 @@ The tests verify these functions:
 - State order, pruning, and read-failure behavior
 - Empty handle file validation
 
-Run this metadata check after a dependency change:
+Run this lock check after a dependency change:
 
 ```powershell
-uv run digest.py --help
+uv run --locked digest.py --help
 ```
 
 For an integration check, replay a known dataset. This check sends an email and can add
@@ -819,16 +840,16 @@ Jinja2 automatic escaping is active for the HTML template.
 
 ## Dependencies and project files
 
-`digest.py` uses PEP 723 inline script metadata. This metadata contains the runtime
-dependencies:
+`pyproject.toml` contains the runtime dependencies, and `uv.lock` locks their exact
+versions:
 
 - `apify-client>=1.8.0,<4`
 - `jinja2>=3.1.0`
 - `tzdata>=2024.1`
 
-When you add a runtime dependency, add it to the metadata at the top of `digest.py`.
-`uv run digest.py` does not use the dependency list in `pyproject.toml`. The
-`pyproject.toml` file contains project metadata only.
+To add a runtime dependency, run `uv add PACKAGE`. This command updates both files.
+`digest.py` stays a single file. It does not have inline script metadata. Releases up to
+v1.2.2 used inline metadata, and the private digest can still run them.
 
 The program supports apify-client versions 1.x through 3.x. The actor call and the field
 access adapt to the installed version.
@@ -843,10 +864,14 @@ access adapt to the installed version.
 | `tests/test_digest.py` | Contains the no-network unit tests. |
 | `.github/workflows/digest.yml` | Runs the job in GitHub Actions. |
 | `.github/workflows/tests.yml` | Runs the tests in GitHub Actions. |
+| `.github/workflows/dependabot-auto-merge.yml` | Increases the version and merges Dependabot pull requests. |
+| `.github/workflows/dependabot-watch.yml` | Opens an issue for a stuck Dependabot pull request. |
+| `.github/dependabot.yml` | Configures the weekly dependency updates. |
 | `LICENSE` | Contains the MIT license. |
 | `.env` | Contains local secrets. Git does not track this file. |
 | `AGENTS.md` | Gives repository instructions to coding agents. |
-| `pyproject.toml` | Contains project metadata only. |
+| `pyproject.toml` | Contains the project version and the runtime dependencies. |
+| `uv.lock` | Locks the exact dependency versions. |
 
 ## Troubleshooting
 

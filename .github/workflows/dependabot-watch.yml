@@ -1,0 +1,42 @@
+name: Dependabot watch
+
+# Auto-merge normally lands a Dependabot PR within minutes, so one open longer than a day
+# is stuck: failed Tests, or an expired or revoked DEPENDABOT_AUTOMERGE_TOKEN. Open an
+# issue assigned to the owner (GitHub emails it) instead of letting dependencies age.
+on:
+  schedule:
+    - cron: "0 14 * * *"  # daily, 9am ET (EST) / 10am ET (EDT)
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  watch:
+    if: github.repository_owner == 'gsanders300'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Report stuck Dependabot PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          export CUTOFF=$(date -u -d '1 day ago' +%Y-%m-%dT%H:%M:%SZ)
+          stuck=$(gh pr list --author app/dependabot --json url,title,createdAt \
+            --jq '.[] | select(.createdAt < env.CUTOFF) | "- \(.url) \(.title)"')
+          if [ -z "$stuck" ]; then
+            echo "No stuck Dependabot PRs."
+            exit 0
+          fi
+          title="Dependabot update stuck"
+          if [ -n "$(gh issue list --state open --search "\"${title}\" in:title" --json number --jq '.[].number')" ]; then
+            echo "An open issue already reports this."
+            exit 0
+          fi
+          gh issue create --title "$title" --assignee "$OWNER" --body "These Dependabot PRs have been open for more than a day. Auto-merge didn't land them: check their Tests runs and the Dependabot auto-merge workflow (an expired or revoked DEPENDABOT_AUTOMERGE_TOKEN fails there).
+
+          ${stuck}"

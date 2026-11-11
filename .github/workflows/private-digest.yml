@@ -37,7 +37,7 @@ jobs:
     steps:
       # In a called workflow this is the caller's repository, which has handles.txt.
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Find X-Digest release
         id: xdigest
@@ -51,17 +51,22 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Check out X-Digest code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: gsanders300/X-Digest
           ref: ${{ steps.xdigest.outputs.tag }}
           path: app
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
           enable-cache: true
+          # Pinned to a version tests.yml covers; add the next one there before raising it.
+          python-version: "3.14"
 
+      # --project app: dependencies come from app/pyproject.toml and app/uv.lock, while the
+      # working directory stays this repo's root so handles.txt resolves here. Older tags with
+      # an inline script header still run in script mode (rollback via `ref`).
       - name: Run digest script
         env:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
@@ -79,8 +84,8 @@ jobs:
           fi
           if [ -n "$DATASET_ID" ]; then
             echo "Running with provided dataset ID: $DATASET_ID"
-            uv run app/digest.py --dataset-id "$DATASET_ID" "${window_args[@]}"
+            uv run --project app app/digest.py --dataset-id "$DATASET_ID" "${window_args[@]}"
           else
             echo "No dataset ID passed. Executing full scrape..."
-            uv run app/digest.py "${window_args[@]}"
+            uv run --project app app/digest.py "${window_args[@]}"
           fi

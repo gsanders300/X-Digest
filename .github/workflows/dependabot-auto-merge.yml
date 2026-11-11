@@ -1,0 +1,52 @@
+name: Dependabot auto-merge
+
+# On Dependabot's PRs: bump the patch version when dependencies changed (so the update
+# ships as a release), then turn on auto-merge. The main ruleset holds the merge until
+# the Tests checks pass.
+#
+# DEPENDABOT_AUTOMERGE_TOKEN is a fine-grained PAT stored as a *Dependabot* secret. A push
+# or merge made with GITHUB_TOKEN would not start Tests or Release. This job holds a
+# write token, so it must never install or run dependency code: it only edits two
+# version strings, commits, and merges.
+on: pull_request
+
+permissions: {}
+
+jobs:
+  bump-and-merge:
+    if: github.actor == 'dependabot[bot]' && github.repository_owner == 'gsanders300'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the PR branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.DEPENDABOT_AUTOMERGE_TOKEN }}
+          fetch-depth: 0  # full history so existing version tags are visible
+
+      # Same rule as the version-bump job in tests.yml.
+      - name: Bump the patch version when dependencies changed
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          latest=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1)
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          if git diff --quiet "$latest" HEAD -- pyproject.toml uv.lock || [ "v${version}" != "$latest" ]; then
+            echo "No version bump needed."
+            exit 0
+          fi
+          IFS=. read -r major minor patch <<< "$version"
+          next="${major}.${minor}.$((patch + 1))"
+          sed -i "s/^version = \"${version}\"$/version = \"${next}\"/" pyproject.toml
+          sed -i "/^name = \"x-digest\"$/{n;s/^version = \"${version}\"$/version = \"${next}\"/}" uv.lock
+          git diff --stat
+          git -c user.name=gsanders300 -c user.email=138838137+gsanders300@users.noreply.github.com \
+            commit -am "Bump version to ${next} for dependency updates"
+          git push origin "HEAD:${HEAD_REF}"
+
+      - name: Turn on auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.DEPENDABOT_AUTOMERGE_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"

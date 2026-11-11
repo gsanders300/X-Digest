@@ -13,8 +13,8 @@ package structure.
 This is the **public** code repo. `handles.txt` here is an example list. The owner's real
 handle list and secrets live in a private repo whose workflow calls
 `.github/workflows/private-digest.yml@main` here. That reusable workflow checks this repo out
-into `app/` at the latest release tag and runs `uv run app/digest.py` from the private
-repo's root (README "Keep your handle list private"). Never commit personal handles, email addresses,
+into `app/` at the latest release tag and runs `uv run --project app app/digest.py` on
+Python 3.14 from the private repo's root (README "Keep your handle list private"). Never commit personal handles, email addresses,
 dataset IDs, or secrets here.
 
 ## Commands
@@ -23,16 +23,17 @@ dataset IDs, or secrets here.
 uv run --env-file .env digest.py                 # local full run (scrapes = costs Apify credits)
 uv run --env-file .env digest.py --dataset-id ID # reuse an existing Apify dataset, no scrape
 uv run --env-file .env digest.py --dataset-id ID --window-date 2026-09-19  # replay, pin the UTC day
-uv run --with "apify-client>=1.8.0,<4" --with "jinja2>=3.1.0" --with "tzdata>=2024.1" \
-  python -m unittest discover -s tests           # run the test suite
+uv run --locked python -m unittest discover -s tests  # run the test suite
 ```
 
 - `--env-file .env` is required locally: `digest.py` reads `os.environ` only and has no
   dotenv loading. CI supplies the same vars from GitHub secrets instead.
-- `digest.py` uses PEP 723 inline script metadata (`apify-client`, `jinja2`, `tzdata`). `uv run` builds
-  an isolated env from that header — the project `.venv`, `pyproject.toml` deps and `uv.lock`
-  are **not** used by it. Adding a dependency means editing the header block at the top of
-  `digest.py`, not `pyproject.toml`.
+- Dependencies live in `pyproject.toml` and are locked in `uv.lock` (uv project mode).
+  Add one with `uv add`. `digest.py` has **no** inline script header: don't add one back,
+  because uv would then run it in script mode and ignore the lock. Releases up to v1.2.2
+  had the header; `uv run --project app` still runs them, which keeps `ref:` rollback working.
+- Running `digest.py` from another directory needs `--project <repo dir>`, or uv won't
+  find the dependencies.
 - Prefer `--dataset-id` for any iteration on parsing/rendering/email. Every scrape hits a
   pay-per-result actor (`kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest`).
 - `--dataset-id` **without** `--window-date` skips window filtering entirely (a replayed
@@ -136,10 +137,10 @@ All state lives in a **named Apify key-value store**, not in the repo: store
   drifts.
 - Apify cost footer comes from `client.user().limits()`: `current.monthly_usage_usd` and
   `limits.max_monthly_usage_usd`. apify-client 3.x returns pydantic models, older 1.x/2.x
-  returns plain camelCase dicts, and the inline metadata allows `>=1.8.0,<4` — hence the
+  returns plain camelCase dicts, and `pyproject.toml` allows `>=1.8.0,<4` — hence the
   `_field` helper. A failure here is non-fatal: it becomes a yellow warning entry. The `<4`
   cap keeps an untested major release out of the live digest (the runner follows the latest
-  release); raise it only after the suite passes on the new major, in every place it's written.
+  release); raise it in `pyproject.toml` only after the suite passes on the new major.
 - Post timestamps come from unstable actor keys (`createdAt`/`created_at`/`date`/`timestamp`),
   so `parse_post_date` handles epoch numbers, ISO-8601, and the legacy
   `Fri Sep 19 09:15:00 +0000 2025` form, and returns `None` rather than raising.
@@ -161,13 +162,22 @@ secrets by name (`secrets: inherit` is documented only within one organization o
 inputs (`dataset_id`, `window_date`, `ref`) and secret names stable, and test a change with
 a manual `--dataset-id` replay from the private repo.
 
-`.github/workflows/tests.yml` runs `uv run digest.py --help` and the unittest suite on
-Python 3.11 and 3.14 for each push to `main` and each pull request, plus a weekly
-`schedule:` run (Saturday 08:00 UTC) that tests against the newest dependency releases the
-inline ranges allow. That cron is fine here; the no-`schedule:` rule is for `digest.yml`.
-Scheduled runs never release (`release.yml` only acts on `push`). It needs no secrets.
-Its `version-bump` job fails when `digest.py` or `template.html` differ from the latest
-`v*` tag while `pyproject.toml` still holds that tag's version.
+`.github/workflows/tests.yml` runs `uv run --locked digest.py --help` and the unittest
+suite (also `--locked`, so a stale `uv.lock` fails) on Python 3.11 and 3.14 for each push
+to `main` and each pull request. It needs no secrets. Its `version-bump` job fails when
+`digest.py`, `template.html`, `pyproject.toml`, or `uv.lock` differ from the latest `v*`
+tag while `pyproject.toml` still holds that tag's version. The live runner's Python
+(`python-version` in `private-digest.yml`) must be a version this matrix covers.
+
+Every `uses:` is pinned to a commit SHA with a version comment; keep new ones pinned.
+Dependency updates are automated (README "Releases"): `.github/dependabot.yml` opens
+grouped Python and Actions PRs Saturday 3am ET, majors ignored.
+`dependabot-auto-merge.yml` bumps the patch version on the Python PR and enables
+auto-merge with the `DEPENDABOT_AUTOMERGE_TOKEN` Dependabot secret (a GITHUB_TOKEN push
+or merge would not start Tests or Release). That job holds a write token, so it must
+never install or run dependency code. The `main` ruleset requiring the Tests checks is
+what holds the merge. `dependabot-watch.yml` (daily cron, fine here) opens an issue when
+a Dependabot PR stays open more than a day. The no-`schedule:` rule is for `digest.yml`.
 
 ## Releases
 
@@ -182,8 +192,7 @@ the live digest.
 
 ## Verification
 
-- `uv run digest.py --help` must still resolve the script env after editing the inline
-  metadata.
+- `uv run --locked digest.py --help` must pass after a dependency change.
 - Run the unittest suite (command above); `tests/test_digest.py` imports `digest` from the
   repo root, so run it from there.
 - The realistic end-to-end check is a `--dataset-id` run against a known dataset and

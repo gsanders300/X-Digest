@@ -1,12 +1,3 @@
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#     "apify-client>=1.8.0,<4",
-#     "jinja2>=3.1.0",
-#     "tzdata>=2024.1",
-# ]
-# ///
-
 import argparse
 import functools
 import html
