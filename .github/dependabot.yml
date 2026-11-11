@@ -10,6 +10,9 @@ updates:
       day: saturday
       time: "03:00"
       timezone: America/New_York
+    # Without this, only the 3 direct dependencies are checked, not the rest of uv.lock.
+    allow:
+      - dependency-type: all
     groups:
       python-packages:
         patterns: ["*"]
