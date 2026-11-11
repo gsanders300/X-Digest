@@ -11,9 +11,10 @@ No web service, no linter config. The single-file layout is final — do not re-
 package structure.
 
 This is the **public** code repo. `handles.txt` here is an example list. The owner's real
-handle list, secrets, and live workflow live in a private repo that checks this repo out
-into `app/` at the latest release tag and runs `uv run app/digest.py` from its own root
-(README "Keep your handle list private"). Never commit personal handles, email addresses,
+handle list and secrets live in a private repo whose workflow calls
+`.github/workflows/private-digest.yml@main` here. That reusable workflow checks this repo out
+into `app/` at the latest release tag and runs `uv run app/digest.py` from the private
+repo's root (README "Keep your handle list private"). Never commit personal handles, email addresses,
 dataset IDs, or secrets here.
 
 ## Commands
@@ -153,6 +154,13 @@ store), a 20-minute job timeout, and passes the dataset ID via the `DATASET_ID` 
 rather than inline `${{ }}` interpolation in the script (shell-injection guard — keep it
 that way).
 
+`.github/workflows/private-digest.yml` is the `workflow_call` workflow the owner's private
+repo runs live. The caller keeps the triggers and the `concurrency` group and passes the 4
+secrets by name (`secrets: inherit` is documented only within one organization or enterprise). It is called from
+`main`, so an edit to it goes live at the next digest **without** the Tests gate: keep its
+inputs (`dataset_id`, `window_date`, `ref`) and secret names stable, and test a change with
+a manual `--dataset-id` replay from the private repo.
+
 `.github/workflows/tests.yml` runs `uv run digest.py --help` and the unittest suite on
 Python 3.11 and 3.14 for each push to `main` and each pull request, plus a weekly
 `schedule:` run (Saturday 08:00 UTC) that tests against the newest dependency releases the
@@ -168,8 +176,8 @@ the README "Releases" steps: bump the version, `uv lock`, push.
 `release.yml` runs on `workflow_run` after Tests succeeds for a push to `main`, tags
 `v<version>` from `pyproject.toml`, and skips when that tag exists, so a code change that
 should ship must bump the version in the same push. Don't run `gh release create` by hand.
-The owner's private runner checks out the **latest release** on every run, so a new release
-goes live at its next digest. Keep the Tests gate: it is the only thing between a push and
+The owner's private runner (via `private-digest.yml`) checks out the **latest release** on
+every run, so a new release goes live at its next digest. Keep the Tests gate: it is the only thing between a push and
 the live digest.
 
 ## Verification

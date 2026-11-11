@@ -645,9 +645,11 @@ private, use two repositories:
 - This public repository has the code.
 - A private repository has your `handles.txt`, the workflow file, and the secrets.
 
-The workflow in the private repository gets a release of the code from this repository
-when it runs. The program reads `handles.txt` from the working directory, which is the
-root of the private repository. It reads `template.html` from the folder of `digest.py`.
+The workflow in the private repository calls the reusable workflow
+`.github/workflows/private-digest.yml` in this repository. That workflow checks out the
+private repository, gets the latest release of the code from this repository into `app/`,
+and runs it. The program reads `handles.txt` from the root of the private repository. It
+reads `template.html` from the folder of `digest.py`.
 
 1. Make a private repository. Put your `handles.txt` in its root folder.
 2. In the private repository, make the file `.github/workflows/digest.yml` with this
@@ -657,12 +659,14 @@ root of the private repository. It reads `template.html` from the folder of `dig
    name: Send Daily X Digest
 
    on:
-     repository_dispatch:
-       types: [apify-digest-ready]
      workflow_dispatch:
        inputs:
          dataset_id:
            description: 'Optional Apify Dataset ID to process'
+           required: false
+           default: ''
+         window_date:
+           description: 'Optional UTC day (YYYY-MM-DD) to scan instead of the sliding window'
            required: false
            default: ''
 
@@ -673,38 +677,15 @@ root of the private repository. It reads `template.html` from the folder of `dig
 
    jobs:
      digest:
-       runs-on: ubuntu-latest
-       timeout-minutes: 20
-
-       steps:
-         - name: Check out repository
-           uses: actions/checkout@v4
-
-         - name: Check out X-Digest code
-           uses: actions/checkout@v4
-           with:
-             repository: gsanders300/X-Digest
-             ref: v1.0.0
-             path: app
-
-         - name: Install uv
-           uses: astral-sh/setup-uv@v5
-           with:
-             enable-cache: true
-
-         - name: Run digest script
-           env:
-             APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
-             GMAIL_USER: ${{ secrets.GMAIL_USER }}
-             GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
-             RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
-             DATASET_ID: ${{ github.event.client_payload.dataset_id || inputs.dataset_id }}
-           run: |
-             if [ -n "$DATASET_ID" ]; then
-               uv run app/digest.py --dataset-id "$DATASET_ID"
-             else
-               uv run app/digest.py
-             fi
+       uses: gsanders300/X-Digest/.github/workflows/private-digest.yml@main
+       with:
+         dataset_id: ${{ inputs.dataset_id }}
+         window_date: ${{ inputs.window_date }}
+       secrets:
+         APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+         GMAIL_USER: ${{ secrets.GMAIL_USER }}
+         GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
+         RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
    ```
 
 3. Add the four secrets to the private repository (see step 4 of
@@ -714,8 +695,11 @@ root of the private repository. It reads `template.html` from the folder of `dig
    [Run on a timer](#run-on-a-timer). Use the name of the private repository in the
    request.
 
-The `ref` value pins a release. A change to the `main` branch of this repository does not
-change the private digest. To use a new release, change `ref` to the new tag.
+The private digest runs the latest release, so a new release goes live at its next run. A
+code change on the `main` branch of this repository does not change the private digest
+until it is released. A change to `private-digest.yml` on `main` does change it at the
+next run, without waiting for the tests. To go back to an older release, add
+`ref: v1.0.6` (the tag you want) under `with:` in the private workflow.
 
 To run the job on your computer, clone both repositories into the same parent folder. Put
 your `.env` file in the private folder, and run the script from that folder:
@@ -739,7 +723,6 @@ To make a release:
    GitHub release from the version in `pyproject.toml`. The commit message becomes the
    release notes. A push that does not change the version, or that fails Tests, makes no
    release.
-4. In each private repository that pins a tag in `ref`, change `ref` to the new tag.
 
 ## Tests and verification
 

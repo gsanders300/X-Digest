@@ -1,0 +1,86 @@
+name: Private digest
+
+# Reusable workflow for a private repository that holds handles.txt and the secrets
+# (README "Keep your handle list private"). It runs the latest release of this code,
+# never main. The caller owns the triggers and the concurrency group.
+on:
+  workflow_call:
+    inputs:
+      dataset_id:
+        type: string
+        required: false
+        default: ''
+      window_date:
+        type: string
+        required: false
+        default: ''
+      ref:
+        description: 'Release tag to run instead of the latest (rollback)'
+        type: string
+        required: false
+        default: ''
+    secrets:
+      APIFY_TOKEN:
+        required: true
+      GMAIL_USER:
+        required: true
+      GMAIL_APP_PASS:
+        required: true
+      RECIPIENT_EMAIL:
+        required: true
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # In a called workflow this is the caller's repository, which has handles.txt.
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Find X-Digest release
+        id: xdigest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ inputs.ref }}
+        run: |
+          tag=${REF:-$(gh release view --repo gsanders300/X-Digest --json tagName -q .tagName)}
+          test -n "$tag"  # an empty ref would silently check out main
+          echo "Using X-Digest $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Check out X-Digest code
+        uses: actions/checkout@v4
+        with:
+          repository: gsanders300/X-Digest
+          ref: ${{ steps.xdigest.outputs.tag }}
+          path: app
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Run digest script
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASS: ${{ secrets.GMAIL_APP_PASS }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          # Passed via env (not inline interpolation) to avoid shell injection.
+          DATASET_ID: ${{ inputs.dataset_id }}
+          WINDOW_DATE: ${{ inputs.window_date }}
+        run: |
+          window_args=()
+          if [ -n "$WINDOW_DATE" ]; then
+            echo "Pinning the scan window to UTC day: $WINDOW_DATE"
+            window_args=(--window-date "$WINDOW_DATE")
+          fi
+          if [ -n "$DATASET_ID" ]; then
+            echo "Running with provided dataset ID: $DATASET_ID"
+            uv run app/digest.py --dataset-id "$DATASET_ID" "${window_args[@]}"
+          else
+            echo "No dataset ID passed. Executing full scrape..."
+            uv run app/digest.py "${window_args[@]}"
+          fi
