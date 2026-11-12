@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Check out the PR branch
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.DEPENDABOT_AUTOMERGE_TOKEN }}
@@ -45,7 +45,9 @@ jobs:
             commit -am "Bump version to ${next} for dependency updates"
           git push origin "HEAD:${HEAD_REF}"
 
+      # Major-group PRs keep the version bump above but wait for a manual merge.
       - name: Turn on auto-merge
+        if: ${{ !contains(github.head_ref, '-major-') }}
         env:
           GH_TOKEN: ${{ secrets.DEPENDABOT_AUTOMERGE_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}

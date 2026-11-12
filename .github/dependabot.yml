@@ -1,7 +1,8 @@
 version: 2
 
 # Weekly grouped updates. dependabot-auto-merge.yml bumps the patch version on the
-# Python PR and merges both once Tests pass. Major versions stay a manual decision.
+# Python PR and merges both once Tests pass. Major versions get their own "-major" groups:
+# auto-merge still bumps the version on those PRs but leaves the merge to you.
 updates:
   - package-ecosystem: uv
     directory: /
@@ -19,9 +20,10 @@ updates:
     groups:
       python-packages:
         patterns: ["*"]
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+        update-types: [minor, patch]
+      python-packages-major:
+        patterns: ["*"]
+        update-types: [major]
 
   - package-ecosystem: github-actions
     directory: /
@@ -33,6 +35,7 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+        update-types: [minor, patch]
+      github-actions-major:
+        patterns: ["*"]
+        update-types: [major]

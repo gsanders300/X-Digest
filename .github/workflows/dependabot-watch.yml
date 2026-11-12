@@ -26,8 +26,10 @@ jobs:
           OWNER: ${{ github.repository_owner }}
         run: |
           export CUTOFF=$(date -u -d '1 day ago' +%Y-%m-%dT%H:%M:%SZ)
-          stuck=$(gh pr list --author app/dependabot --json url,title,createdAt \
-            --jq '.[] | select(.createdAt < env.CUTOFF) | "- \(.url) \(.title)"')
+          # Major-group PRs wait for a manual review, so they are not stuck.
+          stuck=$(gh pr list --author app/dependabot --json url,title,createdAt,headRefName \
+            --jq '.[] | select(.createdAt < env.CUTOFF and (.headRefName | contains("-major-") | not))
+              | "- \(.url) \(.title)"')
           if [ -z "$stuck" ]; then
             echo "No stuck Dependabot PRs."
             exit 0
