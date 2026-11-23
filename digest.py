@@ -337,7 +337,8 @@ def trigger_apify_scrape(
         "searchTerms": search_terms,
         "maxItems": max_items,
         "sort": "Latest",
-        "proxyConfig": {"useApifyProxy": True},
+        # Dropped by the actor before billing and before counting toward maxItems.
+        "tweetTypes": {"excludeRetweets": True},
     }
 
     print(
@@ -346,15 +347,13 @@ def trigger_apify_scrape(
         f"{window_end.astimezone(timezone.utc):%Y-%m-%d %H:%M:%S} UTC, "
         f"maxItems={max_items})..."
     )
-    actor_client = client.actor(
-        "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest"
-    )
+    actor_client = client.actor("xquik/x-tweet-scraper")
     # Timeout parameter names differ between apify-client 1.x/2.x (ints) and
     # 3.x (timedeltas), so pick whichever this installed version accepts.
     call_params = inspect.signature(actor_client.call).parameters
-    # No "build" argument: the actor's default build is its production line.
-    # Its "latest" tag points at a stale 0.0.x line that returns empty datasets.
-    call_kwargs = {"run_input": actor_input, "memory_mbytes": 1024}
+    # No "build" or memory argument: the actor's defaults (its "latest" build,
+    # 256 MB) are what its maintainer supports.
+    call_kwargs = {"run_input": actor_input}
     if "run_timeout" in call_params:  # apify-client 3.x
         call_kwargs["run_timeout"] = timedelta(seconds=ACTOR_TIMEOUT_SECONDS)
         call_kwargs["wait_duration"] = timedelta(seconds=ACTOR_WAIT_SECONDS)
@@ -439,7 +438,6 @@ def parse_post_items(
     """
     new_posts = []
     stats = {
-        "mock": 0,
         "unmonitored": 0,
         "bad_timestamp": 0,
         "outside_window": 0,
@@ -476,16 +474,6 @@ def parse_post_items(
             fix_mojibake((item.get("text") or item.get("full_text") or "").strip())
         )
 
-        # Filter out developer synthetic/mock messages and billing notices
-        text_lower = text.lower()
-        if (
-            "from kaitoeasyapi" in text_lower
-            or "mock data" in text_lower
-            or author.lower() == "kaitoeasyapi"
-        ):
-            stats["mock"] += 1
-            print(f"Ignored mock/billing item (ID: {pid})")
-            continue
         if allowed_handles is not None and author.lower() not in allowed_handles:
             stats["unmonitored"] += 1
             print(f"Ignored item from unmonitored author @{author} (ID: {pid})")
@@ -546,7 +534,7 @@ def parse_post_items(
 
 def drift_warnings(stats: dict) -> list[str]:
     """Warnings for drop reasons that usually mean the actor's output shape
-    changed. Mock/billing and outside-window drops are normal and stay in logs."""
+    changed. Outside-window, emoji-only, and keyword drops are normal and stay in logs."""
     warnings = []
     if stats.get("unmonitored"):
         warnings.append(

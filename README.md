@@ -58,12 +58,12 @@ You must have these items:
 - A Gmail account
 
 The job uses a paid Apify actor:
-[kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest](https://apify.com/kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest).
-The actor charges for each post that it returns. It also has a minimum charge for each
-call, when there are no results too. On 2026-10-04, the actor page showed a price of $0.18
-for each 1,000 posts. The actor page also says that it limits the number of posts for free
-Apify users. Examine the actor page for the current price and limits. The
-[item budget](#item-budget) sets the maximum number of posts for each run.
+[xquik/x-tweet-scraper](https://apify.com/xquik/x-tweet-scraper).
+The actor charges for each post that it returns. A run with no results costs no result
+charge. Apify also charges for platform usage. On 2026-11-23, the actor page showed a
+price of $0.15 for each 1,000 posts on all Apify plans, and an API-started run on the
+Apify free plan returned posts. Examine the actor page for the current price and limits.
+The [item budget](#item-budget) sets the maximum number of posts for each run.
 
 ### Step 1: Install uv
 
@@ -214,11 +214,12 @@ The program does these steps:
 The program uses this actor:
 
 ```text
-kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest
+xquik/x-tweet-scraper
 ```
 
-The actor runs synchronously with 1024 MB of memory. The actor run stops after 600
-seconds. The program waits a maximum of 660 seconds for the actor.
+The actor runs synchronously with its default build and memory. The actor run stops after
+600 seconds. The program waits a maximum of 660 seconds for the actor. The actor removes
+reposts before it charges for them, so reposts do not use the item budget.
 
 ## Scan window
 
@@ -315,11 +316,6 @@ The program sends an item only when all these conditions are true:
 - The text has none of the excluded keywords for that author (see [Handle file](#handle-file)).
 - The timestamp is valid.
 - The timestamp is in the scan window. (Replay mode does not apply this condition.)
-- The item is not an actor test or billing item.
-
-The program removes items that contain `from kaitoeasyapi` or `mock data`. It also
-removes items from the author `kaitoeasyapi`. The actor makes these placeholder items
-when a query has no results.
 
 The program counts the removed items by reason. Removals for an unknown author or an
 invalid timestamp add a yellow warning to the email. These removals usually show a change
@@ -502,8 +498,8 @@ removes the oldest IDs.
 The program saves new IDs only after Gmail accepts an email that has new posts. A failed
 email does not use the IDs. The program saves new scan metadata after each clean sliding
 run, including a run with zero new posts. It does not save new scan metadata when the
-scrape returns zero items, because a broken actor build looks the same. The next run
-scans that interval again.
+scrape returns zero items, because a broken actor build looks the same as a quiet window.
+The next run scans that interval again.
 
 A missing record is a fresh start. A read failure from the Apify API is different: the
 program stops before the scrape, sends an error email, and exits with code 1. This rule
@@ -897,9 +893,7 @@ access adapt to the installed version.
 | The email has a yellow banner. | A warning occurred. | Read the warning entries. |
 | The email warns about the item budget. | The scrape returned the full budget. | Posts can be missing. Increase the run frequency, or accept the limit. |
 | The email warns about removed items. | The actor result format changed. | Examine the dataset items and update `parse_post_items`. |
-| The log says `Ignored mock/billing item`. | The actor returned a placeholder item. | No action is necessary. |
 | The log says `Ignored item outside the UTC digest window`. | The dataset contains a post outside the scan window. | No action is necessary for the overlap. Use `--window-date` for old datasets. |
-| The actor log says `Failed to get user info, status code: 404`. | The actor could not read optional user information. | Check the final actor status. No action is necessary when the status is `SUCCEEDED` and a dataset exists. |
 | The displayed time is not correct. | `DISPLAY_TZ` is missing or not valid. | Use an IANA time zone name such as `America/New_York`. |
 
 ## Known limits
@@ -908,7 +902,8 @@ access adapt to the installed version.
   than the budget. The email shows a warning when this occurs.
 - The job keeps only the newest 1000 sent IDs.
 - The actor result format can change.
-- The actor can charge for placeholder items when a query has no results.
+- A quiet window with no posts returns zero items, so its email says
+  `Scraper Returned Nothing` and the window holds until a run returns posts.
 - A post that enters the X search index more than 10 minutes late can fall outside all
   scan windows. Increase `WINDOW_OVERLAP` in `digest.py` when this occurs.
 - The job sends to one `RECIPIENT_EMAIL` value.

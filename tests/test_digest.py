@@ -157,12 +157,6 @@ class DigestTests(unittest.TestCase):
                 "createdAt": "2026-09-19T12:00:00Z",
             },
             {
-                "id": "mock",
-                "author": {"userName": "sama"},
-                "text": "Mock data from kaitoeasyapi",
-                "createdAt": "2026-09-19T12:00:00Z",
-            },
-            {
                 "id": "emoji-only",
                 "author": {"userName": "sama"},
                 "text": "🔥🔥 https://t.co/abc123",
@@ -181,7 +175,6 @@ class DigestTests(unittest.TestCase):
 
         self.assertEqual([post["id"] for post in posts], ["valid"])
         self.assertEqual(seen_ids, {"valid"})
-        self.assertEqual(stats["mock"], 1)
         self.assertEqual(stats["unmonitored"], 1)
         self.assertEqual(stats["bad_timestamp"], 1)
         self.assertEqual(stats["outside_window"], 1)
@@ -236,13 +229,13 @@ class DigestTests(unittest.TestCase):
 
     def test_drift_warnings_only_for_shape_drift_reasons(self):
         warnings = digest.drift_warnings(
-            {"mock": 3, "unmonitored": 2, "bad_timestamp": 1, "outside_window": 4}
+            {"emoji_only": 3, "unmonitored": 2, "bad_timestamp": 1, "outside_window": 4}
         )
 
         self.assertEqual(len(warnings), 2)
         self.assertIn("2 scraped item(s)", warnings[0])
         self.assertIn("1 scraped item(s)", warnings[1])
-        self.assertEqual(digest.drift_warnings({"mock": 5, "outside_window": 2}), [])
+        self.assertEqual(digest.drift_warnings({"emoji_only": 5, "outside_window": 2}), [])
 
     def test_max_items_budget_scales_with_handles_and_window(self):
         self.assertEqual(digest.max_items_budget(3, 24.0), 75)  # floor
@@ -393,13 +386,12 @@ class DigestTests(unittest.TestCase):
         self.assertEqual(stats["excluded_keyword"], 2)
 
     def test_scrape_uses_actor_default_build(self):
-        # The actor's "latest" tag is a stale line that returns empty datasets.
+        # The actor's own defaults pick its build and memory; retweets stay out.
         calls = []
 
         class FakeActor:
-            def call(self, run_input=None, memory_mbytes=None, run_timeout=None,
-                     wait_duration=None, **kwargs):
-                calls.append(kwargs)
+            def call(self, run_input=None, run_timeout=None, wait_duration=None, **kwargs):
+                calls.append({"run_input": run_input, **kwargs})
                 return {"defaultDatasetId": "ds1"}
 
         class FakeClient:
@@ -413,6 +405,8 @@ class DigestTests(unittest.TestCase):
 
         self.assertEqual(dataset_id, "ds1")
         self.assertNotIn("build", calls[0])
+        self.assertNotIn("memory_mbytes", calls[0])
+        self.assertEqual(calls[0]["run_input"]["tweetTypes"], {"excludeRetweets": True})
 
     def test_subject_flags_empty_scrape_below_scraper_error(self):
         self.assertEqual(

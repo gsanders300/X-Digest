@@ -35,7 +35,10 @@ uv run --locked python -m unittest discover -s tests  # run the test suite
 - Running `digest.py` from another directory needs `--project <repo dir>`, or uv won't
   find the dependencies.
 - Prefer `--dataset-id` for any iteration on parsing/rendering/email. Every scrape hits a
-  pay-per-result actor (`kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest`).
+  pay-per-result actor (`xquik/x-tweet-scraper`). It replaced
+  `kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest` on 2026-11-23, after
+  kaitoeasyapi blocked API runs from Apify free-plan accounts (it returned one `mock_tweet`
+  item with `id: -1` instead of posts). xquik runs on the free plan over the API.
 - `--dataset-id` **without** `--window-date` skips window filtering entirely (a replayed
   dataset may cover any period); dedup and the author allowlist still apply. Pass
   `--window-date YYYY-MM-DD` to force filtering to one UTC day.
@@ -65,7 +68,9 @@ All state lives in a **named Apify key-value store**, not in the repo: store
   failed sends, replay/pinned runs (`--dataset-id`/`--window-date`), or a scrape that
   returned **zero raw items** (`scrape_empty`), so that interval is automatically re-scanned
   by the next run. Zero raw items is how a broken actor build looks: it reports SUCCEEDED
-  with an empty dataset (v1.0.2 sent "No New Posts" for 9 days this way). Such runs get a
+  with an empty dataset (v1.0.2 sent "No New Posts" for 9 days this way). xquik also
+  returns zero items for a genuinely quiet window (no placeholder row), so a quiet window
+  holds too and the next run rescans it. Such runs get a
   `Scraper Returned Nothing` subject and a warning but still exit 0.
 - Re-running after a successful send produces a "No New Posts" email covering a short window
   — the second run is not a no-op bug. To force a resend of an interval, clear or edit the
@@ -104,9 +109,10 @@ All state lives in a **named Apify key-value store**, not in the repo: store
   Keep that defensive style when editing `parse_post_items`.
 - `parse_post_items` returns `(posts, stats)`; `stats` counts drops by reason. Unmonitored-
   author and bad-timestamp drops become email warnings via `drift_warnings` (they usually mean
-  the actor's output shape changed); mock/outside-window drops stay stdout-only.
-- Items whose text mentions `from kaitoeasyapi` / `mock data`, or authored by `kaitoeasyapi`,
-  are dropped on purpose: they are the actor's billing/mock placeholders.
+  the actor's output shape changed); outside-window drops stay stdout-only.
+- The actor input sets `tweetTypes.excludeRetweets`, so the actor drops reposts before
+  billing and before they count toward `maxItems`. Don't send kaitoeasyapi-only input
+  fields such as `proxyConfig`: xquik logs them as unknown.
 - Items whose text is nothing but emoji once URLs and whitespace are removed
   (`is_emoji_only`) are dropped as no-commentary forwards (stdout-only `emoji_only` stat).
 - Post text arrives with occasional mojibake (UTF-8 decoded as cp1252: `â€™` for `’`).
