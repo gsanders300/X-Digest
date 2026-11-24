@@ -45,7 +45,7 @@ SMTP_RETRY_BASE_DELAY = 2.0
 # MAX_ITEMS_PER_HANDLE is a per-24-hours rate; the budget scales with the
 # scanned window but is capped at MAX_ITEMS_WINDOW_CAP_DAYS' worth so a long
 # outage gap cannot explode the ceiling.
-MAX_ITEMS_PER_HANDLE = 5
+MAX_ITEMS_PER_HANDLE = 10
 MAX_ITEMS_FLOOR = 75
 MAX_ITEMS_WINDOW_CAP_DAYS = 3
 
